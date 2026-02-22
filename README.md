@@ -1,6 +1,6 @@
 # Agentic AI Framework
 
-A production-grade multi-agent AI orchestration framework built with Python, featuring MCP (Model Context Protocol) integration, LangGraph workflows, and extensible agent architectures.
+A multi-agent AI orchestration framework built with Python, featuring MCP (Model Context Protocol) integration, LangGraph workflows, and extensible agent architectures.
 
 ## Architecture Overview
 
@@ -41,10 +41,10 @@ A production-grade multi-agent AI orchestration framework built with Python, fea
 ## Features
 
 - **Multi-Agent Orchestration**: Coordinate multiple specialized agents using LangGraph state machines
-- **MCP Protocol Support**: Industry-standard Model Context Protocol for tool serving
+- **MCP Protocol Support**: Standard Model Context Protocol for tool serving
 - **Extensible Tool System**: Plugin-based architecture for adding custom tools
 - **Type-Safe Design**: Full type hints with Pydantic validation
-- **Production Logging**: Structured logging with configurable levels
+- **Logging**: Structured logging with configurable levels
 - **Async-First**: Built on asyncio for high-performance concurrent execution
 - **Comprehensive Testing**: Unit and integration tests with pytest
 
