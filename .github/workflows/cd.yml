@@ -49,7 +49,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: testpypi
-      url: https://test.pypi.org/p/agentic-ai
+      url: https://test.pypi.org/p/agentic-ai-mcp
     permissions:
       id-token: write  # Required for trusted publishing
 
@@ -72,7 +72,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/agentic-ai
+      url: https://pypi.org/p/agentic-ai-mcp
     permissions:
       id-token: write  # Required for trusted publishing
 

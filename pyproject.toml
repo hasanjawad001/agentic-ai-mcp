@@ -3,11 +3,11 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agentic-ai"
+name = "agentic-ai-mcp"
 version = "0.1.0"
 description = "A production-grade multi-agent AI orchestration framework"
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
 requires-python = ">=3.11"
 authors = [
     {name = "Jawad Chowdhury", email = "hasanjawad001@gmail.com"}
@@ -15,7 +15,6 @@ authors = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -49,10 +48,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/hasanjawad001/code_agentic_ai"
-Documentation = "https://github.com/hasanjawad001/code_agentic_ai#readme"
-Repository = "https://github.com/hasanjawad001/code_agentic_ai.git"
-Issues = "https://github.com/hasanjawad001/code_agentic_ai/issues"
+Homepage = "https://github.com/hasanjawad001/agentic-ai-mcp"
+Documentation = "https://github.com/hasanjawad001/agentic-ai-mcp#readme"
+Repository = "https://github.com/hasanjawad001/agentic-ai-mcp.git"
+Issues = "https://github.com/hasanjawad001/agentic-ai-mcp/issues"
 
 [project.scripts]
 agentic-server = "agentic_ai.mcp.server:main"

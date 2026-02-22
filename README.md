@@ -52,8 +52,8 @@ A production-grade multi-agent AI orchestration framework built with Python, fea
 
 ```bash
 # Clone the repository
-git clone https://github.com/hasanjawad001/code_agentic_ai.git
-cd code_agentic_ai
+git clone https://github.com/hasanjawad001/agentic-ai-mcp.git
+cd agentic-ai-mcp
 
 # Create virtual environment
 uv venv env --python 3.13
