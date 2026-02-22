@@ -2,8 +2,8 @@
 
 import pytest
 
-from agentic_ai.tools.math_tools import MathTools, get_math_tools
-from agentic_ai.tools.text_tools import TextTools, get_text_tools
+from agentic_ai_mcp.tools.math_tools import MathTools, get_math_tools
+from agentic_ai_mcp.tools.text_tools import TextTools, get_text_tools
 
 
 class TestMathTools:

@@ -9,9 +9,9 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from agentic_ai.config.settings import get_settings
-from agentic_ai.tools.math_tools import MathTools
-from agentic_ai.tools.text_tools import TextTools
+from agentic_ai_mcp.config.settings import get_settings
+from agentic_ai_mcp.tools.math_tools import MathTools
+from agentic_ai_mcp.tools.text_tools import TextTools
 
 logger = logging.getLogger(__name__)
 

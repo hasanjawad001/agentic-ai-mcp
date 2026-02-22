@@ -17,8 +17,8 @@ import asyncio
 import logging
 import sys
 
-from agentic_ai.mcp.client import MCPClient
-from agentic_ai.mcp.server import run_server
+from agentic_ai_mcp.mcp.client import MCPClient
+from agentic_ai_mcp.mcp.server import run_server
 
 # Configure logging
 logging.basicConfig(

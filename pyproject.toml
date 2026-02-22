@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentic-ai-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "A production-grade multi-agent AI orchestration framework"
 readme = "README.md"
 license = "MIT"
@@ -54,7 +54,7 @@ Repository = "https://github.com/hasanjawad001/agentic-ai-mcp.git"
 Issues = "https://github.com/hasanjawad001/agentic-ai-mcp/issues"
 
 [project.scripts]
-agentic-server = "agentic_ai.mcp.server:main"
+agentic-server = "agentic_ai_mcp.mcp.server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -112,10 +112,10 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["agentic_ai"]
+known-first-party = ["agentic_ai_mcp"]
 
 [tool.coverage.run]
-source = ["src/agentic_ai"]
+source = ["src/agentic_ai_mcp"]
 branch = true
 
 [tool.coverage.report]

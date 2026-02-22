@@ -10,7 +10,7 @@ from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, ConfigDict, Field
 
-from agentic_ai.core.types import AgentResponse, AgentRole
+from agentic_ai_mcp.core.types import AgentResponse, AgentRole
 
 logger = logging.getLogger(__name__)
 

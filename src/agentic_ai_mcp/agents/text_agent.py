@@ -1,4 +1,4 @@
-"""Math Agent specialized for mathematical operations."""
+"""Text Agent specialized for text manipulation operations."""
 
 from __future__ import annotations
 
@@ -9,49 +9,51 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langgraph.prebuilt import create_react_agent
 
-from agentic_ai.config.settings import get_settings
-from agentic_ai.core.base_agent import BaseAgent
-from agentic_ai.core.types import AgentResponse, AgentRole
-from agentic_ai.tools.math_tools import get_math_tools
+from agentic_ai_mcp.config.settings import get_settings
+from agentic_ai_mcp.core.base_agent import BaseAgent
+from agentic_ai_mcp.core.types import AgentResponse, AgentRole
+from agentic_ai_mcp.tools.text_tools import get_text_tools
 
 logger = logging.getLogger(__name__)
 
 
-MATH_AGENT_PROMPT = """You are a specialized Math Agent responsible for mathematical calculations.
+TEXT_AGENT_PROMPT = """You are a specialized Text Agent responsible for text manipulation operations.
 
 Your capabilities include:
-- Addition, subtraction, multiplication, and division
-- Exponentiation (power operations)
-- Square root calculations
+- Case conversion (uppercase, lowercase, capitalize)
+- Text transformation (reverse, strip whitespace)
+- Text analysis (count characters, count words)
+- Search and replace operations
 
 Guidelines:
-1. Use the appropriate tool for each mathematical operation
-2. Show your work by explaining what calculation you're performing
-3. Return numerical results clearly
-4. If a calculation cannot be performed (e.g., division by zero), explain why
+1. Use the appropriate tool for each text operation
+2. Explain what transformation you're applying
+3. Return the transformed text clearly
+4. Handle empty strings and edge cases gracefully
 
-You have access to the following tools: add, subtract, multiply, divide, power, sqrt
+You have access to the following tools: to_uppercase, to_lowercase, capitalize,
+reverse_text, strip_whitespace, count_chars, count_words, search_replace
 
-Always use the tools for calculations rather than computing mentally."""
+Always use the tools for transformations rather than doing them mentally."""
 
 
-class MathAgent(BaseAgent):
+class TextAgent(BaseAgent):
     """
-    Specialized agent for mathematical operations.
+    Specialized agent for text manipulation operations.
 
-    This agent has access to math tools (add, subtract, multiply, divide, power, sqrt)
-    and is designed to handle numerical computation tasks.
+    This agent has access to text tools (uppercase, lowercase, reverse, count, etc.)
+    and is designed to handle string processing tasks.
     """
 
-    name: str = "math_agent"
-    description: str = "Specialized agent for mathematical calculations and numerical operations"
+    name: str = "text_agent"
+    description: str = "Specialized agent for text manipulation and string operations"
     role: AgentRole = AgentRole.SPECIALIST
-    system_prompt: str = MATH_AGENT_PROMPT
+    system_prompt: str = TEXT_AGENT_PROMPT
 
     def __init__(self, **data: Any) -> None:
-        """Initialize the Math Agent with math tools."""
+        """Initialize the Text Agent with text tools."""
         if "tools" not in data:
-            data["tools"] = get_math_tools()
+            data["tools"] = get_text_tools()
         super().__init__(**data)
         self._llm: ChatAnthropic | None = None
         self._react_agent: Any | None = None
@@ -83,16 +85,16 @@ class MathAgent(BaseAgent):
         **kwargs: Any,
     ) -> AgentResponse:
         """
-        Process mathematical queries.
+        Process text manipulation queries.
 
         Args:
             messages: Conversation messages
             **kwargs: Additional arguments
 
         Returns:
-            AgentResponse with calculation results
+            AgentResponse with transformed text
         """
-        logger.info(f"Math Agent processing request")
+        logger.info(f"Text Agent processing request")
 
         agent = self._get_react_agent()
 
@@ -116,7 +118,7 @@ class MathAgent(BaseAgent):
                     content = msg.content
                     break
 
-            logger.info(f"Math Agent completed processing")
+            logger.info(f"Text Agent completed processing")
 
             return AgentResponse(
                 agent_name=self.name,
@@ -126,10 +128,10 @@ class MathAgent(BaseAgent):
             )
 
         except Exception as e:
-            logger.error(f"Math Agent error: {e}")
+            logger.error(f"Text Agent error: {e}")
             return AgentResponse(
                 agent_name=self.name,
-                content=f"Error performing calculation: {str(e)}",
+                content=f"Error performing text operation: {str(e)}",
                 is_final=True,
                 metadata={"error": str(e)},
             )
@@ -142,17 +144,17 @@ class MathAgent(BaseAgent):
         return "\n".join(descriptions)
 
 
-def create_math_agent() -> MathAgent:
-    """Factory function to create a MathAgent instance."""
-    return MathAgent()
+def create_text_agent() -> TextAgent:
+    """Factory function to create a TextAgent instance."""
+    return TextAgent()
 
 
-def get_math_react_agent() -> Any:
+def get_text_react_agent() -> Any:
     """
-    Get a pre-configured ReAct agent for math operations.
+    Get a pre-configured ReAct agent for text operations.
 
     Returns:
-        LangGraph ReAct agent with math tools
+        LangGraph ReAct agent with text tools
     """
     settings = get_settings()
     llm = ChatAnthropic(
@@ -160,4 +162,4 @@ def get_math_react_agent() -> Any:
         api_key=settings.anthropic_api_key,
         max_tokens=settings.max_tokens,
     )
-    return create_react_agent(llm, get_math_tools())
+    return create_react_agent(llm, get_text_tools())

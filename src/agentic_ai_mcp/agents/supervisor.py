@@ -9,9 +9,9 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
-from agentic_ai.config.settings import get_settings
-from agentic_ai.core.base_agent import BaseAgent
-from agentic_ai.core.types import AgentResponse, AgentRole, RouteDecision
+from agentic_ai_mcp.config.settings import get_settings
+from agentic_ai_mcp.core.base_agent import BaseAgent
+from agentic_ai_mcp.core.types import AgentResponse, AgentRole, RouteDecision
 
 logger = logging.getLogger(__name__)
 

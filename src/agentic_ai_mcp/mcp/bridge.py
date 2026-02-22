@@ -9,7 +9,7 @@ from typing import Any, Callable
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field, create_model
 
-from agentic_ai.mcp.client import MCPClient
+from agentic_ai_mcp.mcp.client import MCPClient
 
 logger = logging.getLogger(__name__)
 

@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from agentic_ai.orchestration.workflow import AgenticWorkflow, create_workflow
+from agentic_ai_mcp.orchestration.workflow import AgenticWorkflow, create_workflow
 
 
 class TestAgenticWorkflow:
@@ -84,7 +84,7 @@ class TestWorkflowGraph:
 
     def test_workflow_state_schema(self):
         """Test workflow state schema."""
-        from agentic_ai.orchestration.workflow import WorkflowState
+        from agentic_ai_mcp.orchestration.workflow import WorkflowState
 
         # WorkflowState should have required keys
         assert "messages" in WorkflowState.__annotations__

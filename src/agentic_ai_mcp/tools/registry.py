@@ -8,8 +8,8 @@ from typing import Any, Callable
 from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import BaseModel, Field
 
-from agentic_ai.tools.math_tools import get_math_tools
-from agentic_ai.tools.text_tools import get_text_tools
+from agentic_ai_mcp.tools.math_tools import get_math_tools
+from agentic_ai_mcp.tools.text_tools import get_text_tools
 
 logger = logging.getLogger(__name__)
 

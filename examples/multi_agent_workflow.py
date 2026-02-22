@@ -9,7 +9,7 @@ Tasks that require multiple agents are automatically routed through the supervis
 import asyncio
 import logging
 
-from agentic_ai.orchestration.workflow import AgenticWorkflow
+from agentic_ai_mcp.orchestration.workflow import AgenticWorkflow
 
 # Configure logging
 logging.basicConfig(

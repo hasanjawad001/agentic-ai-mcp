@@ -12,7 +12,7 @@ from datetime import datetime
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
-from agentic_ai.tools.registry import ToolRegistry, get_registry
+from agentic_ai_mcp.tools.registry import ToolRegistry, get_registry
 
 # Configure logging
 logging.basicConfig(

@@ -8,12 +8,12 @@ This framework provides:
 - Type-safe, async-first design
 """
 
-from agentic_ai.core.base_agent import BaseAgent
-from agentic_ai.core.state import AgentState, WorkflowState
-from agentic_ai.orchestration.workflow import AgenticWorkflow
-from agentic_ai.tools.registry import ToolRegistry
+from agentic_ai_mcp.core.base_agent import BaseAgent
+from agentic_ai_mcp.core.state import AgentState, WorkflowState
+from agentic_ai_mcp.orchestration.workflow import AgenticWorkflow
+from agentic_ai_mcp.tools.registry import ToolRegistry
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "BaseAgent",

@@ -10,7 +10,7 @@ from typing import Any, AsyncIterator
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
-from agentic_ai.config.settings import get_settings
+from agentic_ai_mcp.config.settings import get_settings
 
 logger = logging.getLogger(__name__)
 

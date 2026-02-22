@@ -39,21 +39,21 @@ def mock_llm():
 @pytest.fixture
 def math_tools():
     """Get math tools for testing."""
-    from agentic_ai.tools.math_tools import get_math_tools
+    from agentic_ai_mcp.tools.math_tools import get_math_tools
     return get_math_tools()
 
 
 @pytest.fixture
 def text_tools():
     """Get text tools for testing."""
-    from agentic_ai.tools.text_tools import get_text_tools
+    from agentic_ai_mcp.tools.text_tools import get_text_tools
     return get_text_tools()
 
 
 @pytest.fixture
 def tool_registry():
     """Get a fresh tool registry for testing."""
-    from agentic_ai.tools.registry import ToolRegistry
+    from agentic_ai_mcp.tools.registry import ToolRegistry
 
     # Create a new instance (bypass singleton for testing)
     registry = object.__new__(ToolRegistry)

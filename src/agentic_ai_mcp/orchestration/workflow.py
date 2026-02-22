@@ -11,10 +11,10 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import create_react_agent
 
-from agentic_ai.agents.supervisor import RoutingDecision
-from agentic_ai.config.settings import get_settings
-from agentic_ai.tools.math_tools import get_math_tools
-from agentic_ai.tools.text_tools import get_text_tools
+from agentic_ai_mcp.agents.supervisor import RoutingDecision
+from agentic_ai_mcp.config.settings import get_settings
+from agentic_ai_mcp.tools.math_tools import get_math_tools
+from agentic_ai_mcp.tools.text_tools import get_text_tools
 
 logger = logging.getLogger(__name__)
 

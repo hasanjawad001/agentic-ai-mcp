@@ -8,8 +8,8 @@ Demonstrates how to use the Agentic AI Framework for simple single-agent tasks.
 import asyncio
 import logging
 
-from agentic_ai.agents.math_agent import MathAgent
-from agentic_ai.agents.text_agent import TextAgent
+from agentic_ai_mcp.agents.math_agent import MathAgent
+from agentic_ai_mcp.agents.text_agent import TextAgent
 from langchain_core.messages import HumanMessage
 
 # Configure logging

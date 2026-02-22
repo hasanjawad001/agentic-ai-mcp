@@ -50,6 +50,14 @@ A production-grade multi-agent AI orchestration framework built with Python, fea
 
 ## Installation
 
+### From PyPI (Recommended)
+
+```bash
+pip install agentic-ai-mcp
+```
+
+### From Source (For Development)
+
 ```bash
 # Clone the repository
 git clone https://github.com/hasanjawad001/agentic-ai-mcp.git
@@ -72,13 +80,13 @@ cp .env.example .env
 ### 1. Start the MCP Server
 
 ```bash
-python -m agentic_ai.mcp.server
+python -m agentic_ai_mcp.mcp.server
 ```
 
 ### 2. Run a Multi-Agent Workflow
 
 ```python
-from agentic_ai import AgenticWorkflow
+from agentic_ai_mcp import AgenticWorkflow
 
 async def main():
     workflow = AgenticWorkflow()
@@ -94,8 +102,8 @@ asyncio.run(main())
 ### 3. Create Custom Agents
 
 ```python
-from agentic_ai.core import BaseAgent
-from agentic_ai.tools import tool
+from agentic_ai_mcp.core import BaseAgent
+from agentic_ai_mcp.tools import tool
 
 class MyCustomAgent(BaseAgent):
     name = "custom_agent"
@@ -110,9 +118,9 @@ class MyCustomAgent(BaseAgent):
 ## Project Structure
 
 ```
-code_agentic_ai/
+code_agentic_ai_mcp/
 ├── src/
-│   └── agentic_ai/
+│   └── agentic_ai_mcp/
 │       ├── core/           # Core abstractions and base classes
 │       ├── tools/          # Tool definitions and registry
 │       ├── mcp/            # MCP server, client, and bridge
@@ -173,7 +181,7 @@ class Settings(BaseSettings):
 pytest
 
 # Run with coverage
-pytest --cov=agentic_ai --cov-report=html
+pytest --cov=agentic_ai_mcp --cov-report=html
 
 # Run specific test file
 pytest tests/unit/test_tools.py -v
