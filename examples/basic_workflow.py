@@ -29,7 +29,7 @@ async def run_math_agent_example():
     agent = MathAgent()
 
     # Simple calculation
-    messages = [HumanMessage(content="What is 15 + 27?")]
+    messages = [HumanMessage(content="What is (((3+3)/(2*2))-3.5)^3?")]
     response = await agent.process(messages)
 
     print(f"\nQuery: {messages[0].content}")

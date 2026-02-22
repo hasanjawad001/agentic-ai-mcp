@@ -16,17 +16,23 @@ from agentic_ai.tools.text_tools import TextTools
 logger = logging.getLogger(__name__)
 
 
-def create_mcp_server(name: str = "agentic-ai-tools") -> FastMCP:
+def create_mcp_server(
+    name: str = "agentic-ai-tools",
+    host: str = "0.0.0.0",
+    port: int = 8888,
+) -> FastMCP:
     """
     Create and configure an MCP server with all available tools.
 
     Args:
         name: Name for the MCP server
+        host: Host address to bind to
+        port: Port number to listen on
 
     Returns:
         Configured FastMCP server instance
     """
-    mcp = FastMCP(name)
+    mcp = FastMCP(name, host=host, port=port)
 
     # Register Math Tools
     @mcp.tool()
@@ -121,12 +127,12 @@ def run_server(
     host = host or settings.mcp_server_host
     port = port or settings.mcp_server_port
 
-    mcp = create_mcp_server()
+    mcp = create_mcp_server(host=host, port=port)
 
     logger.info(f"Starting MCP server on {host}:{port}")
     print(f"MCP Server running at http://{host}:{port}/mcp")
 
-    mcp.run(transport=transport, host=host, port=port)
+    mcp.run(transport=transport)
 
 
 def main() -> None:

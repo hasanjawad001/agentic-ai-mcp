@@ -7,7 +7,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator
 
-from mcp import Client
+from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
 from agentic_ai.config.settings import get_settings
@@ -34,7 +34,7 @@ class MCPClient:
         """
         settings = get_settings()
         self.server_url = server_url or settings.mcp_server_url
-        self._client: Client | None = None
+        self._client: ClientSession | None = None
         self._tools: list[dict[str, Any]] = []
 
     @asynccontextmanager
@@ -48,7 +48,7 @@ class MCPClient:
         logger.info(f"Connecting to MCP server at {self.server_url}")
 
         async with streamablehttp_client(self.server_url) as (read, write, _):
-            async with Client(read, write) as client:
+            async with ClientSession(read, write) as client:
                 self._client = client
                 await client.initialize()
 

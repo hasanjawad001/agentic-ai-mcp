@@ -242,14 +242,12 @@ Consider what has already been done and what still needs to be done."""
     async def execute(
         self,
         query: str,
-        stream: bool = False,
     ) -> dict[str, Any]:
         """
         Execute the workflow with a user query.
 
         Args:
             query: User's request
-            stream: Whether to stream execution steps
 
         Returns:
             Final workflow state with results
@@ -265,14 +263,36 @@ Consider what has already been done and what still needs to be done."""
             "iteration_count": 0,
         }
 
-        if stream:
-            # Stream execution steps
-            async for step in compiled.astream(initial_state):
-                logger.debug(f"Step: {step}")
-                yield step
-        else:
-            result = await compiled.ainvoke(initial_state)
-            return result
+        result = await compiled.ainvoke(initial_state)
+        return result
+
+    async def execute_stream(
+        self,
+        query: str,
+    ) -> Any:
+        """
+        Execute the workflow with streaming output.
+
+        Args:
+            query: User's request
+
+        Yields:
+            Execution steps as they happen
+        """
+        logger.info(f"Streaming workflow for: {query[:100]}...")
+
+        compiled = self.compile()
+
+        initial_state: WorkflowState = {
+            "messages": [HumanMessage(content=query)],
+            "next_agent": "",
+            "execution_path": [],
+            "iteration_count": 0,
+        }
+
+        async for step in compiled.astream(initial_state):
+            logger.debug(f"Step: {step}")
+            yield step
 
     def execute_sync(self, query: str) -> dict[str, Any]:
         """Synchronous execution wrapper."""

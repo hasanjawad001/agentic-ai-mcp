@@ -91,7 +91,7 @@ async def run_streaming_example():
     print(f"\nQuery: {query}")
     print("\nStreaming execution steps:")
 
-    async for step in workflow.execute(query, stream=True):
+    async for step in workflow.execute_stream(query):
         # Print each step as it happens
         for key, value in step.items():
             if key == "messages":
