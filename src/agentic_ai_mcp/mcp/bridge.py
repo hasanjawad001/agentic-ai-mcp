@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
-from collections.abc import Callable
+from contextlib import asynccontextmanager
 from typing import Any
 
 from langchain_core.tools import StructuredTool
@@ -15,12 +14,21 @@ from agentic_ai_mcp.mcp.client import MCPClient
 logger = logging.getLogger(__name__)
 
 
+class MCPConnectionError(Exception):
+    """Raised when unable to connect to MCP server."""
+
+    pass
+
+
 class MCPToolBridge:
     """
     Bridge that converts MCP tools to LangChain StructuredTools.
 
     This allows MCP-served tools to be used seamlessly with
     LangChain agents and LangGraph workflows.
+
+    The bridge maintains a persistent connection context for the workflow duration,
+    avoiding asyncio.run() issues in async contexts.
     """
 
     def __init__(self, server_url: str | None = None) -> None:
@@ -33,44 +41,69 @@ class MCPToolBridge:
         self.client = MCPClient(server_url)
         self._tools: list[StructuredTool] = []
         self._tool_map: dict[str, StructuredTool] = {}
+        self._connected_client: MCPClient | None = None
+
+    @asynccontextmanager
+    async def connect(self):
+        """
+        Establish a persistent connection to the MCP server.
+
+        Yields:
+            Self with active connection for tool calls.
+
+        Raises:
+            MCPConnectionError: If unable to connect to MCP server.
+        """
+        try:
+            async with self.client.connect() as connected_client:
+                self._connected_client = connected_client
+                mcp_tools = connected_client.tools
+                self._tools = []
+                self._tool_map = {}
+
+                for mcp_tool in mcp_tools:
+                    lc_tool = self._convert_mcp_to_langchain(mcp_tool)
+                    self._tools.append(lc_tool)
+                    self._tool_map[lc_tool.name] = lc_tool
+
+                logger.info(f"Loaded {len(self._tools)} tools from MCP server")
+                try:
+                    yield self
+                finally:
+                    self._connected_client = None
+        except Exception as e:
+            server_url = self.client.server_url
+            raise MCPConnectionError(
+                f"Cannot connect to MCP server at {server_url}\n"
+                f"Please start the server first: python -m agentic_ai_mcp.mcp.server\n"
+                f"Original error: {e}"
+            ) from e
 
     async def load_tools(self) -> list[StructuredTool]:
         """
         Load tools from MCP server and convert to LangChain tools.
 
+        Note: This method creates a temporary connection. For workflow use,
+        prefer using the connect() context manager for persistent connection.
+
         Returns:
             List of LangChain StructuredTools
         """
-        async with self.client.connect() as connected_client:
-            mcp_tools = connected_client.tools
-            self._tools = []
-            self._tool_map = {}
-
-            for mcp_tool in mcp_tools:
-                lc_tool = self._convert_mcp_to_langchain(
-                    mcp_tool,
-                    connected_client,
-                )
-                self._tools.append(lc_tool)
-                self._tool_map[lc_tool.name] = lc_tool
-
-            logger.info(f"Loaded {len(self._tools)} tools from MCP server")
-            return self._tools
+        async with self.connect():
+            return self._tools.copy()
 
     def _convert_mcp_to_langchain(
         self,
         mcp_tool: dict[str, Any],
-        _client: MCPClient,
     ) -> StructuredTool:
         """
         Convert an MCP tool definition to a LangChain StructuredTool.
 
         Args:
             mcp_tool: MCP tool definition
-            client: Connected MCP client
 
         Returns:
-            LangChain StructuredTool
+            LangChain StructuredTool with async coroutine
         """
         name = mcp_tool["name"]
         description = mcp_tool.get("description", f"Tool: {name}")
@@ -79,17 +112,14 @@ class MCPToolBridge:
         # Build Pydantic model from JSON schema
         args_schema = self._schema_to_pydantic(name, input_schema)
 
-        # Create sync wrapper for async tool call
-        def create_tool_func(tool_name: str) -> Callable[..., str]:
-            def tool_func(**kwargs: Any) -> str:
-                return asyncio.run(self._call_tool_async(tool_name, kwargs))
-
-            return tool_func
+        # Create async coroutine for tool call (works with LangGraph's async execution)
+        async def tool_coroutine(tool_name: str = name, **kwargs: Any) -> str:
+            return await self._call_tool_async(tool_name, kwargs)
 
         return StructuredTool(
             name=name,
             description=description,
-            func=create_tool_func(name),
+            coroutine=tool_coroutine,
             args_schema=args_schema,
         )
 
@@ -98,9 +128,24 @@ class MCPToolBridge:
         name: str,
         arguments: dict[str, Any],
     ) -> str:
-        """Call a tool asynchronously."""
-        async with self.client.connect() as connected_client:
-            return await connected_client.call_tool(name, arguments)
+        """
+        Call a tool asynchronously using the active connection.
+
+        Args:
+            name: Tool name
+            arguments: Tool arguments
+
+        Returns:
+            Tool execution result
+
+        Raises:
+            RuntimeError: If no active connection
+        """
+        if self._connected_client is None:
+            raise RuntimeError(
+                "No active MCP connection. Use 'async with bridge.connect():'"
+            )
+        return await self._connected_client.call_tool(name, arguments)
 
     def _schema_to_pydantic(
         self,
@@ -214,4 +259,6 @@ def load_mcp_tools_sync(server_url: str | None = None) -> list[StructuredTool]:
     Returns:
         List of LangChain StructuredTools
     """
+    import asyncio
+
     return asyncio.run(load_mcp_tools(server_url))

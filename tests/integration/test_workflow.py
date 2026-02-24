@@ -1,5 +1,7 @@
 """Integration tests for workflow orchestration."""
 
+import pytest
+
 from agentic_ai_mcp.orchestration.workflow import AgenticWorkflow, create_workflow
 
 
@@ -13,26 +15,35 @@ class TestAgenticWorkflow:
         assert isinstance(workflow, AgenticWorkflow)
         assert workflow.max_iterations == 5
 
+    def test_create_workflow_with_server_url(self):
+        """Test workflow creation with custom server URL."""
+        workflow = create_workflow(server_url="http://custom:9999/mcp")
+
+        assert workflow._bridge.client.server_url == "http://custom:9999/mcp"
+
     def test_workflow_default_iterations(self):
         """Test default max iterations."""
         workflow = AgenticWorkflow()
         assert workflow.max_iterations == 10
 
-    def test_compile_workflow(self):
-        """Test workflow compilation."""
-        workflow = AgenticWorkflow()
+    def test_workflow_has_mcp_bridge(self):
+        """Test that workflow has MCP bridge."""
+        from agentic_ai_mcp.mcp.bridge import MCPToolBridge
 
+        workflow = AgenticWorkflow()
+        assert isinstance(workflow._bridge, MCPToolBridge)
+
+    def test_compile_workflow(self, mock_workflow_with_mcp):
+        """Test workflow compilation with mocked MCP."""
         # Compilation should not raise
-        compiled = workflow.compile()
+        compiled = mock_workflow_with_mcp.compile()
 
         assert compiled is not None
 
-    def test_compile_caches_result(self):
+    def test_compile_caches_result(self, mock_workflow_with_mcp):
         """Test that compile caches the compiled graph."""
-        workflow = AgenticWorkflow()
-
-        compiled1 = workflow.compile()
-        compiled2 = workflow.compile()
+        compiled1 = mock_workflow_with_mcp.compile()
+        compiled2 = mock_workflow_with_mcp.compile()
 
         assert compiled1 is compiled2
 
@@ -65,12 +76,11 @@ class TestAgenticWorkflow:
 class TestWorkflowGraph:
     """Tests for workflow graph structure."""
 
-    def test_graph_has_required_nodes(self):
+    def test_graph_has_required_nodes(self, mock_workflow_with_mcp):
         """Test that the graph has all required nodes."""
-        workflow = AgenticWorkflow()
-        workflow._build_graph()
+        mock_workflow_with_mcp._build_graph()
 
-        graph = workflow._graph
+        graph = mock_workflow_with_mcp._graph
         assert graph is not None
 
         # Check nodes exist (by checking the graph was built)
@@ -87,3 +97,37 @@ class TestWorkflowGraph:
         assert "messages" in WorkflowState.__annotations__
         assert "next_agent" in WorkflowState.__annotations__
         assert "execution_path" in WorkflowState.__annotations__
+
+
+class TestMCPIntegration:
+    """Tests for MCP integration in workflow."""
+
+    @pytest.mark.asyncio
+    async def test_load_tools_from_mcp(self, mock_workflow_with_mcp):
+        """Test that tools are loaded from MCP bridge."""
+        async with mock_workflow_with_mcp._bridge.connect():
+            await mock_workflow_with_mcp._load_tools_from_mcp()
+
+            assert len(mock_workflow_with_mcp._math_tools) > 0
+            assert len(mock_workflow_with_mcp._text_tools) > 0
+
+    @pytest.mark.asyncio
+    async def test_math_tools_loaded_correctly(self, mock_workflow_with_mcp):
+        """Test that math tools include expected tools."""
+        async with mock_workflow_with_mcp._bridge.connect():
+            await mock_workflow_with_mcp._load_tools_from_mcp()
+
+            tool_names = [t.name for t in mock_workflow_with_mcp._math_tools]
+            assert "add" in tool_names
+            assert "subtract" in tool_names
+            assert "multiply" in tool_names
+
+    @pytest.mark.asyncio
+    async def test_text_tools_loaded_correctly(self, mock_workflow_with_mcp):
+        """Test that text tools include expected tools."""
+        async with mock_workflow_with_mcp._bridge.connect():
+            await mock_workflow_with_mcp._load_tools_from_mcp()
+
+            tool_names = [t.name for t in mock_workflow_with_mcp._text_tools]
+            assert "to_uppercase" in tool_names
+            assert "to_lowercase" in tool_names

@@ -14,8 +14,7 @@ from langgraph.prebuilt import create_react_agent
 
 from agentic_ai_mcp.agents.supervisor import RoutingDecision
 from agentic_ai_mcp.config.settings import get_settings
-from agentic_ai_mcp.tools.math_tools import get_math_tools
-from agentic_ai_mcp.tools.text_tools import get_text_tools
+from agentic_ai_mcp.mcp.bridge import MCPToolBridge
 
 logger = logging.getLogger(__name__)
 
@@ -43,28 +42,39 @@ class AgenticWorkflow:
 
     This workflow:
     1. Receives a user request
-    2. Routes to the appropriate specialist agent
-    3. Executes the agent's tools
-    4. Routes to next agent or finishes
+    2. Connects to MCP server and loads tools
+    3. Routes to the appropriate specialist agent
+    4. Executes the agent's tools via MCP
+    5. Routes to next agent or finishes
+
+    All tools are accessed exclusively through the MCP server.
 
     Example:
         workflow = AgenticWorkflow()
         result = await workflow.execute("Calculate 5 + 3, then convert to uppercase")
     """
 
-    def __init__(self, max_iterations: int = 10) -> None:
+    def __init__(
+        self,
+        max_iterations: int = 10,
+        server_url: str | None = None,
+    ) -> None:
         """
         Initialize the workflow.
 
         Args:
             max_iterations: Maximum number of agent routing iterations
+            server_url: MCP server URL (defaults to settings)
         """
         self.max_iterations = max_iterations
+        self._bridge = MCPToolBridge(server_url)
         self._graph: StateGraph | None = None
         self._compiled: Any = None
         self._llm: ChatAnthropic | None = None
         self._math_agent: Any = None
         self._text_agent: Any = None
+        self._math_tools: list = []
+        self._text_tools: list = []
 
     def _get_llm(self) -> ChatAnthropic:
         """Get or create the LLM instance."""
@@ -78,22 +88,31 @@ class AgenticWorkflow:
         return self._llm
 
     def _get_math_agent(self) -> Any:
-        """Get or create the math ReAct agent."""
+        """Get or create the math ReAct agent using MCP-sourced tools."""
         if self._math_agent is None:
             self._math_agent = create_react_agent(
                 self._get_llm(),
-                get_math_tools(),
+                self._math_tools,
             )
         return self._math_agent
 
     def _get_text_agent(self) -> Any:
-        """Get or create the text ReAct agent."""
+        """Get or create the text ReAct agent using MCP-sourced tools."""
         if self._text_agent is None:
             self._text_agent = create_react_agent(
                 self._get_llm(),
-                get_text_tools(),
+                self._text_tools,
             )
         return self._text_agent
+
+    async def _load_tools_from_mcp(self) -> None:
+        """Load tools from MCP server and categorize them."""
+        self._math_tools = self._bridge.get_tools_by_category("math")
+        self._text_tools = self._bridge.get_tools_by_category("text")
+        logger.info(
+            f"Loaded {len(self._math_tools)} math tools and "
+            f"{len(self._text_tools)} text tools from MCP"
+        )
 
     def _build_graph(self) -> StateGraph:
         """Build the LangGraph workflow."""
@@ -247,25 +266,39 @@ Consider what has already been done and what still needs to be done."""
         """
         Execute the workflow with a user query.
 
+        Connects to MCP server, loads tools, and runs the workflow.
+
         Args:
             query: User's request
 
         Returns:
             Final workflow state with results
+
+        Raises:
+            agentic_ai_mcp.mcp.bridge.MCPConnectionError: If unable to connect to MCP server
         """
         logger.info(f"Executing workflow for: {query[:100]}...")
 
-        compiled = self.compile()
+        # Connect to MCP and run workflow within the connection context
+        async with self._bridge.connect():
+            # Load and categorize tools from MCP
+            await self._load_tools_from_mcp()
 
-        initial_state: WorkflowState = {
-            "messages": [HumanMessage(content=query)],
-            "next_agent": "",
-            "execution_path": [],
-            "iteration_count": 0,
-        }
+            # Reset agents to use newly loaded tools
+            self._math_agent = None
+            self._text_agent = None
 
-        result = await compiled.ainvoke(initial_state)
-        return result
+            compiled = self.compile()
+
+            initial_state: WorkflowState = {
+                "messages": [HumanMessage(content=query)],
+                "next_agent": "",
+                "execution_path": [],
+                "iteration_count": 0,
+            }
+
+            result = await compiled.ainvoke(initial_state)
+            return result
 
     async def execute_stream(
         self,
@@ -274,26 +307,40 @@ Consider what has already been done and what still needs to be done."""
         """
         Execute the workflow with streaming output.
 
+        Connects to MCP server, loads tools, and streams workflow execution.
+
         Args:
             query: User's request
 
         Yields:
             Execution steps as they happen
+
+        Raises:
+            agentic_ai_mcp.mcp.bridge.MCPConnectionError: If unable to connect to MCP server
         """
         logger.info(f"Streaming workflow for: {query[:100]}...")
 
-        compiled = self.compile()
+        # Connect to MCP and run workflow within the connection context
+        async with self._bridge.connect():
+            # Load and categorize tools from MCP
+            await self._load_tools_from_mcp()
 
-        initial_state: WorkflowState = {
-            "messages": [HumanMessage(content=query)],
-            "next_agent": "",
-            "execution_path": [],
-            "iteration_count": 0,
-        }
+            # Reset agents to use newly loaded tools
+            self._math_agent = None
+            self._text_agent = None
 
-        async for step in compiled.astream(initial_state):
-            logger.debug(f"Step: {step}")
-            yield step
+            compiled = self.compile()
+
+            initial_state: WorkflowState = {
+                "messages": [HumanMessage(content=query)],
+                "next_agent": "",
+                "execution_path": [],
+                "iteration_count": 0,
+            }
+
+            async for step in compiled.astream(initial_state):
+                logger.debug(f"Step: {step}")
+                yield step
 
     def execute_sync(self, query: str) -> dict[str, Any]:
         """Synchronous execution wrapper."""
@@ -327,17 +374,21 @@ Consider what has already been done and what still needs to be done."""
             return None
 
 
-def create_workflow(max_iterations: int = 10) -> AgenticWorkflow:
+def create_workflow(
+    max_iterations: int = 10,
+    server_url: str | None = None,
+) -> AgenticWorkflow:
     """
     Factory function to create an AgenticWorkflow.
 
     Args:
         max_iterations: Maximum routing iterations
+        server_url: MCP server URL (defaults to settings)
 
     Returns:
         Configured AgenticWorkflow instance
     """
-    return AgenticWorkflow(max_iterations=max_iterations)
+    return AgenticWorkflow(max_iterations=max_iterations, server_url=server_url)
 
 
 async def run_workflow(query: str) -> str:

@@ -12,7 +12,6 @@ from langgraph.prebuilt import create_react_agent
 from agentic_ai_mcp.config.settings import get_settings
 from agentic_ai_mcp.core.base_agent import BaseAgent
 from agentic_ai_mcp.core.types import AgentResponse, AgentRole
-from agentic_ai_mcp.tools.math_tools import get_math_tools
 
 logger = logging.getLogger(__name__)
 
@@ -49,9 +48,7 @@ class MathAgent(BaseAgent):
     system_prompt: str = MATH_AGENT_PROMPT
 
     def __init__(self, **data: Any) -> None:
-        """Initialize the Math Agent with math tools."""
-        if "tools" not in data:
-            data["tools"] = get_math_tools()
+        """Initialize the Math Agent. Tools must be provided by the workflow."""
         super().__init__(**data)
         self._llm: ChatAnthropic | None = None
         self._react_agent: Any | None = None
