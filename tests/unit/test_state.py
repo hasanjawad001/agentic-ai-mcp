@@ -1,9 +1,8 @@
 """Unit tests for state management."""
 
-import pytest
 from datetime import datetime
 
-from agentic_ai_mcp.core.state import AgentState, create_initial_state, GraphState
+from agentic_ai_mcp.core.state import AgentState, create_initial_state
 
 
 class TestAgentState:

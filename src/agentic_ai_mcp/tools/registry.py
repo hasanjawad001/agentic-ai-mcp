@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import BaseModel, Field
@@ -167,7 +168,7 @@ class ToolRegistry:
 
     def list_categories(self) -> list[str]:
         """Get all unique categories."""
-        return list(set(m.category for m in self._metadata.values()))
+        return list({m.category for m in self._metadata.values()})
 
     def get_metadata(self, name: str) -> ToolMetadata | None:
         """Get metadata for a tool."""

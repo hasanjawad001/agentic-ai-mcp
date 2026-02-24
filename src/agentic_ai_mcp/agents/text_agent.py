@@ -82,19 +82,19 @@ class TextAgent(BaseAgent):
     async def process(
         self,
         messages: list[BaseMessage],
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> AgentResponse:
         """
         Process text manipulation queries.
 
         Args:
             messages: Conversation messages
-            **kwargs: Additional arguments
+            **_kwargs: Additional arguments (unused, for interface compatibility)
 
         Returns:
             AgentResponse with transformed text
         """
-        logger.info(f"Text Agent processing request")
+        logger.info("Text Agent processing request")
 
         agent = self._get_react_agent()
 
@@ -118,7 +118,7 @@ class TextAgent(BaseAgent):
                     content = msg.content
                     break
 
-            logger.info(f"Text Agent completed processing")
+            logger.info("Text Agent completed processing")
 
             return AgentResponse(
                 agent_name=self.name,

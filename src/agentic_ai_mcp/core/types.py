@@ -1,12 +1,12 @@
 """Core type definitions for the Agentic AI Framework."""
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class AgentRole(str, Enum):
+class AgentRole(StrEnum):
     """Enumeration of agent roles in the system."""
 
     SUPERVISOR = "supervisor"
@@ -76,7 +76,7 @@ class RouteDecision(BaseModel):
     )
 
 
-class ExecutionStatus(str, Enum):
+class ExecutionStatus(StrEnum):
     """Status of workflow execution."""
 
     PENDING = "pending"

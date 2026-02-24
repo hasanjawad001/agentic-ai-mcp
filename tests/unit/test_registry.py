@@ -1,6 +1,5 @@
 """Unit tests for tool registry."""
 
-import pytest
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
@@ -17,10 +16,15 @@ class SingleArgInput(BaseModel):
     x: int = Field(description="Input value")
 
 
+def _noop() -> None:
+    """No-op function for test tools."""
+    pass
+
+
 def create_test_tool(name: str, description: str = "", func=None) -> StructuredTool:
     """Helper to create test tools with proper args_schema."""
     if func is None:
-        func = lambda: None
+        func = _noop
     return StructuredTool(
         name=name,
         description=description or f"Test tool {name}",

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator
+from typing import Any
 
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
@@ -47,28 +47,30 @@ class MCPClient:
         """
         logger.info(f"Connecting to MCP server at {self.server_url}")
 
-        async with streamablehttp_client(self.server_url) as (read, write, _):
-            async with ClientSession(read, write) as client:
-                self._client = client
-                await client.initialize()
+        async with (
+            streamablehttp_client(self.server_url) as (read, write, _),
+            ClientSession(read, write) as client,
+        ):
+            self._client = client
+            await client.initialize()
 
-                # Fetch available tools
-                tools_response = await client.list_tools()
-                self._tools = [
-                    {
-                        "name": tool.name,
-                        "description": tool.description,
-                        "input_schema": tool.inputSchema,
-                    }
-                    for tool in tools_response.tools
-                ]
-                logger.info(f"Connected. Found {len(self._tools)} tools")
+            # Fetch available tools
+            tools_response = await client.list_tools()
+            self._tools = [
+                {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "input_schema": tool.inputSchema,
+                }
+                for tool in tools_response.tools
+            ]
+            logger.info(f"Connected. Found {len(self._tools)} tools")
 
-                try:
-                    yield self
-                finally:
-                    self._client = None
-                    self._tools = []
+            try:
+                yield self
+            finally:
+                self._client = None
+                self._tools = []
 
     @property
     def tools(self) -> list[dict[str, Any]]:

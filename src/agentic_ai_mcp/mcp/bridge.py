@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field, create_model
@@ -59,7 +60,7 @@ class MCPToolBridge:
     def _convert_mcp_to_langchain(
         self,
         mcp_tool: dict[str, Any],
-        client: MCPClient,
+        _client: MCPClient,
     ) -> StructuredTool:
         """
         Convert an MCP tool definition to a LangChain StructuredTool.

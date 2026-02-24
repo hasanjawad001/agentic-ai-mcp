@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import logging
 import operator
-from typing import Annotated, Any, Sequence, TypedDict
+from collections.abc import Sequence
+from typing import Annotated, Any, TypedDict
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import operator
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Annotated, Any, Sequence
+from typing import Annotated, Any, TypedDict
 
 from langchain_core.messages import BaseMessage
 
@@ -103,10 +104,6 @@ class WorkflowState:
     def to_dict(self) -> dict[str, Any]:
         """Convert state to dictionary."""
         return self._state.copy()
-
-
-# TypedDict version for LangGraph compatibility
-from typing import TypedDict
 
 
 class GraphState(TypedDict):

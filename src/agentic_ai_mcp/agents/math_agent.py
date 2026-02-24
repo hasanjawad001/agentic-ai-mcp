@@ -80,19 +80,19 @@ class MathAgent(BaseAgent):
     async def process(
         self,
         messages: list[BaseMessage],
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> AgentResponse:
         """
         Process mathematical queries.
 
         Args:
             messages: Conversation messages
-            **kwargs: Additional arguments
+            **_kwargs: Additional arguments (unused, for interface compatibility)
 
         Returns:
             AgentResponse with calculation results
         """
-        logger.info(f"Math Agent processing request")
+        logger.info("Math Agent processing request")
 
         agent = self._get_react_agent()
 
@@ -116,7 +116,7 @@ class MathAgent(BaseAgent):
                     content = msg.content
                     break
 
-            logger.info(f"Math Agent completed processing")
+            logger.info("Math Agent completed processing")
 
             return AgentResponse(
                 agent_name=self.name,

@@ -82,7 +82,7 @@ class SupervisorAgent(BaseAgent):
     async def process(
         self,
         messages: list[BaseMessage],
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> AgentResponse:
         """
         Process messages and decide which agent to route to.
