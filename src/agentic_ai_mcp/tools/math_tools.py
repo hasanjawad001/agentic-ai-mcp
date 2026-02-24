@@ -6,7 +6,7 @@ import logging
 import math
 from typing import Annotated
 
-from langchain_core.tools import StructuredTool, tool as langchain_tool
+from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -218,22 +218,3 @@ def get_math_tools() -> list[StructuredTool]:
             args_schema=SqrtInput,
         ),
     ]
-
-
-# Module-level tool definitions using LangChain decorator
-@langchain_tool(args_schema=AddInput)
-def add_tool(a: int | float, b: int | float) -> int | float:
-    """Add two numbers together."""
-    return MathTools.add(a, b)
-
-
-@langchain_tool(args_schema=MultiplyInput)
-def multiply_tool(a: int | float, b: int | float) -> int | float:
-    """Multiply two numbers together."""
-    return MathTools.multiply(a, b)
-
-
-@langchain_tool(args_schema=SubtractInput)
-def subtract_tool(a: int | float, b: int | float) -> int | float:
-    """Subtract the second number from the first."""
-    return MathTools.subtract(a, b)

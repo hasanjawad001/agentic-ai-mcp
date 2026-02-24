@@ -6,7 +6,7 @@ import logging
 import re
 from typing import Annotated
 
-from langchain_core.tools import StructuredTool, tool as langchain_tool
+from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -254,28 +254,3 @@ def get_text_tools() -> list[StructuredTool]:
             args_schema=SearchReplaceInput,
         ),
     ]
-
-
-# Module-level tool definitions using LangChain decorator
-@langchain_tool(args_schema=TextInput)
-def uppercase_tool(text: str) -> str:
-    """Convert text to uppercase."""
-    return TextTools.to_uppercase(text)
-
-
-@langchain_tool(args_schema=TextInput)
-def lowercase_tool(text: str) -> str:
-    """Convert text to lowercase."""
-    return TextTools.to_lowercase(text)
-
-
-@langchain_tool(args_schema=TextInput)
-def reverse_tool(text: str) -> str:
-    """Reverse the characters in text."""
-    return TextTools.reverse_text(text)
-
-
-@langchain_tool(args_schema=TextInput)
-def count_chars_tool(text: str) -> int:
-    """Count characters in text."""
-    return TextTools.count_chars(text)

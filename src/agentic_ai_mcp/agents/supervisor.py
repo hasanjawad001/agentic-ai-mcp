@@ -159,25 +159,3 @@ class SupervisorAgent(BaseAgent):
     def get_available_agents(self) -> list[str]:
         """Get list of agents this supervisor can route to."""
         return ["math_agent", "text_agent"]
-
-
-def create_supervisor() -> SupervisorAgent:
-    """Factory function to create a SupervisorAgent instance."""
-    return SupervisorAgent()
-
-
-def get_routing_function() -> Any:
-    """
-    Get a routing function for use in LangGraph workflows.
-
-    Returns:
-        Function that takes state and returns next node name
-    """
-    supervisor = create_supervisor()
-
-    async def router(state: dict[str, Any]) -> str:
-        messages = state.get("messages", [])
-        decision = await supervisor.route(messages)
-        return decision.next_agent
-
-    return router

@@ -142,24 +142,3 @@ class TextAgent(BaseAgent):
         for tool in self.tools:
             descriptions.append(f"- {tool.name}: {tool.description}")
         return "\n".join(descriptions)
-
-
-def create_text_agent() -> TextAgent:
-    """Factory function to create a TextAgent instance."""
-    return TextAgent()
-
-
-def get_text_react_agent() -> Any:
-    """
-    Get a pre-configured ReAct agent for text operations.
-
-    Returns:
-        LangGraph ReAct agent with text tools
-    """
-    settings = get_settings()
-    llm = ChatAnthropic(
-        model=settings.default_model,
-        api_key=settings.anthropic_api_key,
-        max_tokens=settings.max_tokens,
-    )
-    return create_react_agent(llm, get_text_tools())

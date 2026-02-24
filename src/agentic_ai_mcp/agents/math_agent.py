@@ -140,24 +140,3 @@ class MathAgent(BaseAgent):
         for tool in self.tools:
             descriptions.append(f"- {tool.name}: {tool.description}")
         return "\n".join(descriptions)
-
-
-def create_math_agent() -> MathAgent:
-    """Factory function to create a MathAgent instance."""
-    return MathAgent()
-
-
-def get_math_react_agent() -> Any:
-    """
-    Get a pre-configured ReAct agent for math operations.
-
-    Returns:
-        LangGraph ReAct agent with math tools
-    """
-    settings = get_settings()
-    llm = ChatAnthropic(
-        model=settings.default_model,
-        api_key=settings.anthropic_api_key,
-        max_tokens=settings.max_tokens,
-    )
-    return create_react_agent(llm, get_math_tools())
