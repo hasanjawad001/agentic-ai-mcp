@@ -136,9 +136,7 @@ class ToolRegistry:
             List of tools in the category
         """
         return [
-            tool
-            for name, tool in self._tools.items()
-            if self._metadata[name].category == category
+            tool for name, tool in self._tools.items() if self._metadata[name].category == category
         ]
 
     def get_by_tags(self, tags: list[str]) -> list[BaseTool]:
@@ -153,9 +151,7 @@ class ToolRegistry:
         """
         tag_set = set(tags)
         return [
-            tool
-            for name, tool in self._tools.items()
-            if tag_set & set(self._metadata[name].tags)
+            tool for name, tool in self._tools.items() if tag_set & set(self._metadata[name].tags)
         ]
 
     def list_all(self) -> list[BaseTool]:

@@ -98,9 +98,7 @@ class BaseAgent(BaseModel, ABC):
                     raise
 
         available_tools = [t.name for t in self.tools]
-        raise ValueError(
-            f"Tool '{tool_name}' not found. Available tools: {available_tools}"
-        )
+        raise ValueError(f"Tool '{tool_name}' not found. Available tools: {available_tools}")
 
     def get_tool_schemas(self) -> list[dict[str, Any]]:
         """

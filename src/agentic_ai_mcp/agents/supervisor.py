@@ -103,15 +103,16 @@ class SupervisorAgent(BaseAgent):
         routing_messages = [
             SystemMessage(content=self.system_prompt),
             *messages,
-            HumanMessage(content="Based on the conversation, which agent should handle this next? Reply with your routing decision."),
+            HumanMessage(
+                content="Based on the conversation, which agent should handle this next? Reply with your routing decision."
+            ),
         ]
 
         try:
             decision: RoutingDecision = await structured_llm.ainvoke(routing_messages)
 
             logger.info(
-                f"Supervisor decision: {decision.next_agent} "
-                f"(reason: {decision.reasoning})"
+                f"Supervisor decision: {decision.next_agent} (reason: {decision.reasoning})"
             )
 
             return AgentResponse(

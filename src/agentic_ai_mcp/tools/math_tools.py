@@ -12,10 +12,12 @@ from pydantic import BaseModel, Field
 logger = logging.getLogger(__name__)
 
 
-class AddInput(BaseModel): ## BaseModel enforces type hints as pydantic validates it
+class AddInput(BaseModel):  ## BaseModel enforces type hints as pydantic validates it
     """Input schema for add operation."""
 
-    a: Annotated[int | float, Field(description="First number to add")] ## Annotated combines type and Field metadata
+    a: Annotated[
+        int | float, Field(description="First number to add")
+    ]  ## Annotated combines type and Field metadata
     b: Annotated[int | float, Field(description="Second number to add")]
 
 

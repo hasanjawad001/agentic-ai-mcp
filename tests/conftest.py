@@ -9,11 +9,14 @@ import pytest
 @pytest.fixture(autouse=True)
 def mock_env_vars():
     """Mock environment variables for testing."""
-    with patch.dict(os.environ, {
-        "ANTHROPIC_API_KEY": "sk-test-key-for-testing",
-        "MCP_SERVER_HOST": "localhost",
-        "MCP_SERVER_PORT": "8888",
-    }):
+    with patch.dict(
+        os.environ,
+        {
+            "ANTHROPIC_API_KEY": "sk-test-key-for-testing",
+            "MCP_SERVER_HOST": "localhost",
+            "MCP_SERVER_PORT": "8888",
+        },
+    ):
         yield
 
 
@@ -40,6 +43,7 @@ def mock_llm():
 def math_tools():
     """Get math tools for testing."""
     from agentic_ai_mcp.tools.math_tools import get_math_tools
+
     return get_math_tools()
 
 
@@ -47,6 +51,7 @@ def math_tools():
 def text_tools():
     """Get text tools for testing."""
     from agentic_ai_mcp.tools.text_tools import get_text_tools
+
     return get_text_tools()
 
 

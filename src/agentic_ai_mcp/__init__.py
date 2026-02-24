@@ -13,7 +13,7 @@ from agentic_ai_mcp.core.state import AgentState, WorkflowState
 from agentic_ai_mcp.orchestration.workflow import AgenticWorkflow
 from agentic_ai_mcp.tools.registry import ToolRegistry
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "BaseAgent",

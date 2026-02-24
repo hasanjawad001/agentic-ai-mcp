@@ -82,9 +82,8 @@ class MCPToolBridge:
         # Create sync wrapper for async tool call
         def create_tool_func(tool_name: str) -> Callable[..., str]:
             def tool_func(**kwargs: Any) -> str:
-                return asyncio.run(
-                    self._call_tool_async(tool_name, kwargs)
-                )
+                return asyncio.run(self._call_tool_async(tool_name, kwargs))
+
             return tool_func
 
         return StructuredTool(
@@ -130,7 +129,10 @@ class MCPToolBridge:
                 fields[prop_name] = (prop_type, Field(..., description=prop_description))
             else:
                 default = prop_schema.get("default")
-                fields[prop_name] = (prop_type, Field(default=default, description=prop_description))
+                fields[prop_name] = (
+                    prop_type,
+                    Field(default=default, description=prop_description),
+                )
 
         model_name = f"{name.title().replace('_', '')}Args"
         return create_model(model_name, **fields)
@@ -170,8 +172,14 @@ class MCPToolBridge:
         """
         math_tools = {"add", "subtract", "multiply", "divide", "power", "sqrt"}
         text_tools = {
-            "to_uppercase", "to_lowercase", "reverse_text", "count_chars",
-            "count_words", "capitalize", "strip_whitespace", "search_replace"
+            "to_uppercase",
+            "to_lowercase",
+            "reverse_text",
+            "count_chars",
+            "count_words",
+            "capitalize",
+            "strip_whitespace",
+            "search_replace",
         }
 
         if category == "math":

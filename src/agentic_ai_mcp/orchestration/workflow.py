@@ -200,7 +200,7 @@ Consider what has already been done and what still needs to be done."""
         result = await agent.ainvoke({"messages": state["messages"]})
 
         # Extract new messages (excluding input)
-        new_messages = result["messages"][len(state["messages"]):]
+        new_messages = result["messages"][len(state["messages"]) :]
 
         return {
             "messages": new_messages,
@@ -226,7 +226,7 @@ Consider what has already been done and what still needs to be done."""
         result = await agent.ainvoke({"messages": state["messages"]})
 
         # Extract new messages (excluding input)
-        new_messages = result["messages"][len(state["messages"]):]
+        new_messages = result["messages"][len(state["messages"]) :]
 
         return {
             "messages": new_messages,
@@ -298,6 +298,7 @@ Consider what has already been done and what still needs to be done."""
     def execute_sync(self, query: str) -> dict[str, Any]:
         """Synchronous execution wrapper."""
         import asyncio
+
         return asyncio.run(self.execute(query))
 
     def get_final_response(self, result: dict[str, Any]) -> str:
