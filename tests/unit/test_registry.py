@@ -2,6 +2,31 @@
 
 import pytest
 from langchain_core.tools import StructuredTool
+from pydantic import BaseModel, Field
+
+
+class EmptyInput(BaseModel):
+    """Empty input schema for test tools that take no arguments."""
+
+    pass
+
+
+class SingleArgInput(BaseModel):
+    """Input schema for test tools that take a single argument."""
+
+    x: int = Field(description="Input value")
+
+
+def create_test_tool(name: str, description: str = "", func=None) -> StructuredTool:
+    """Helper to create test tools with proper args_schema."""
+    if func is None:
+        func = lambda: None
+    return StructuredTool(
+        name=name,
+        description=description or f"Test tool {name}",
+        func=func,
+        args_schema=EmptyInput,
+    )
 
 
 class TestToolRegistry:
@@ -13,6 +38,7 @@ class TestToolRegistry:
             name="test_tool",
             description="A test tool",
             func=lambda x: x,
+            args_schema=SingleArgInput,
         )
 
         tool_registry.register(tool, category="test")
@@ -22,6 +48,7 @@ class TestToolRegistry:
 
     def test_register_function(self, tool_registry):
         """Test registering a function as a tool."""
+
         def my_func(x: int) -> int:
             """Double the input."""
             return x * 2
@@ -37,11 +64,7 @@ class TestToolRegistry:
 
     def test_get_tool(self, tool_registry):
         """Test getting a tool by name."""
-        tool = StructuredTool(
-            name="my_tool",
-            description="Test",
-            func=lambda: None,
-        )
+        tool = create_test_tool("my_tool", "Test")
         tool_registry.register(tool)
 
         retrieved = tool_registry.get("my_tool")
@@ -54,9 +77,9 @@ class TestToolRegistry:
 
     def test_get_by_category(self, tool_registry):
         """Test getting tools by category."""
-        tool1 = StructuredTool(name="t1", description="", func=lambda: None)
-        tool2 = StructuredTool(name="t2", description="", func=lambda: None)
-        tool3 = StructuredTool(name="t3", description="", func=lambda: None)
+        tool1 = create_test_tool("t1")
+        tool2 = create_test_tool("t2")
+        tool3 = create_test_tool("t3")
 
         tool_registry.register(tool1, category="math")
         tool_registry.register(tool2, category="math")
@@ -67,8 +90,8 @@ class TestToolRegistry:
 
     def test_get_by_tags(self, tool_registry):
         """Test getting tools by tags."""
-        tool1 = StructuredTool(name="t1", description="", func=lambda: None)
-        tool2 = StructuredTool(name="t2", description="", func=lambda: None)
+        tool1 = create_test_tool("t1")
+        tool2 = create_test_tool("t2")
 
         tool_registry.register(tool1, tags=["numeric", "fast"])
         tool_registry.register(tool2, tags=["string"])
@@ -79,7 +102,7 @@ class TestToolRegistry:
 
     def test_unregister_tool(self, tool_registry):
         """Test unregistering a tool."""
-        tool = StructuredTool(name="to_remove", description="", func=lambda: None)
+        tool = create_test_tool("to_remove")
         tool_registry.register(tool)
 
         assert "to_remove" in tool_registry
@@ -95,12 +118,8 @@ class TestToolRegistry:
 
     def test_clear(self, tool_registry):
         """Test clearing all tools."""
-        tool_registry.register(
-            StructuredTool(name="t1", description="", func=lambda: None)
-        )
-        tool_registry.register(
-            StructuredTool(name="t2", description="", func=lambda: None)
-        )
+        tool_registry.register(create_test_tool("t1"))
+        tool_registry.register(create_test_tool("t2"))
 
         assert len(tool_registry) == 2
 
@@ -110,8 +129,8 @@ class TestToolRegistry:
 
     def test_list_all(self, tool_registry):
         """Test listing all tools."""
-        tool1 = StructuredTool(name="t1", description="", func=lambda: None)
-        tool2 = StructuredTool(name="t2", description="", func=lambda: None)
+        tool1 = create_test_tool("t1")
+        tool2 = create_test_tool("t2")
 
         tool_registry.register(tool1)
         tool_registry.register(tool2)
@@ -121,12 +140,8 @@ class TestToolRegistry:
 
     def test_list_names(self, tool_registry):
         """Test listing tool names."""
-        tool_registry.register(
-            StructuredTool(name="alpha", description="", func=lambda: None)
-        )
-        tool_registry.register(
-            StructuredTool(name="beta", description="", func=lambda: None)
-        )
+        tool_registry.register(create_test_tool("alpha"))
+        tool_registry.register(create_test_tool("beta"))
 
         names = tool_registry.list_names()
         assert "alpha" in names
@@ -134,14 +149,8 @@ class TestToolRegistry:
 
     def test_list_categories(self, tool_registry):
         """Test listing categories."""
-        tool_registry.register(
-            StructuredTool(name="t1", description="", func=lambda: None),
-            category="cat1",
-        )
-        tool_registry.register(
-            StructuredTool(name="t2", description="", func=lambda: None),
-            category="cat2",
-        )
+        tool_registry.register(create_test_tool("t1"), category="cat1")
+        tool_registry.register(create_test_tool("t2"), category="cat2")
 
         categories = tool_registry.list_categories()
         assert "cat1" in categories

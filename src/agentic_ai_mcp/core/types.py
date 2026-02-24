@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AgentRole(str, Enum):
@@ -17,6 +17,8 @@ class AgentRole(str, Enum):
 class ToolCall(BaseModel):
     """Represents a tool call made by an agent."""
 
+    model_config = ConfigDict(frozen=True)
+
     id: str = Field(..., description="Unique identifier for this tool call")
     name: str = Field(..., description="Name of the tool to invoke")
     arguments: dict[str, Any] = Field(
@@ -24,20 +26,16 @@ class ToolCall(BaseModel):
         description="Arguments to pass to the tool",
     )
 
-    class Config:
-        frozen = True
-
 
 class ToolResult(BaseModel):
     """Represents the result of a tool execution."""
+
+    model_config = ConfigDict(frozen=True)
 
     tool_call_id: str = Field(..., description="ID of the tool call this result belongs to")
     name: str = Field(..., description="Name of the tool that was invoked")
     content: str = Field(..., description="Result content from the tool")
     is_error: bool = Field(default=False, description="Whether the result is an error")
-
-    class Config:
-        frozen = True
 
 
 class AgentResponse(BaseModel):
