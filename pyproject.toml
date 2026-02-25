@@ -50,9 +50,6 @@ Documentation = "https://github.com/hasanjawad001/agentic-ai-mcp#readme"
 Repository = "https://github.com/hasanjawad001/agentic-ai-mcp.git"
 Issues = "https://github.com/hasanjawad001/agentic-ai-mcp/issues"
 
-[project.scripts]
-agentic-server = "agentic_ai_mcp.server:main"
-
 [tool.setuptools.packages.find]
 where = ["src"]
 

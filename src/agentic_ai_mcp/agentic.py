@@ -126,15 +126,12 @@ class AgenticAI:
         schema = mcp_tool.inputSchema if hasattr(mcp_tool, "inputSchema") else {}
         args_model = self._create_args_model(schema)
 
-        def call_tool(**kwargs: Any) -> Any:
-            async def _call():
-                async with Client(mcp_url) as client:
-                    return await client.call_tool(mcp_tool.name, kwargs)
-            return asyncio.get_event_loop().run_until_complete(_call())
-
         async def acall_tool(**kwargs: Any) -> Any:
             async with Client(mcp_url) as client:
                 return await client.call_tool(mcp_tool.name, kwargs)
+
+        def call_tool(**kwargs: Any) -> Any:
+            return asyncio.run(acall_tool(**kwargs))
 
         return StructuredTool(
             name=mcp_tool.name,
@@ -210,6 +207,8 @@ class AgenticAI:
         step = 0
 
         for msg in messages:
+            if isinstance(msg, HumanMessage):   
+                pass
             if isinstance(msg, AIMessage):
                 if hasattr(msg, "tool_calls") and msg.tool_calls:
                     for tc in msg.tool_calls:
