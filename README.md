@@ -40,7 +40,16 @@ ai.run_mcp_server()
 # 4. Execute agentic workflow
 result = await ai.run("Calculate 2+3 and greet Tom the result times")
 print(result)
+
+# 5. For complex tasks, use planning 
+result = await ai.run_with_planning("First calculate 10+20, then greet Alice that many times")
+print(result)
 ```
+
+## Methods
+
+- `ai.run(prompt)` - Simple agent workflow for simpler tasks
+- `ai.run_with_planning(prompt)` - Planning-based workflow for complex multi-step tasks (planning, executing, synthesizing)
 
 ## License
 
