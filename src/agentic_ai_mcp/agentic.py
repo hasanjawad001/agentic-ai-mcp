@@ -1,8 +1,8 @@
 """AgenticAI - Simple agentic AI with MCP tools."""
 
 import asyncio
+import multiprocessing
 import operator
-import threading
 import time
 from collections.abc import Callable
 from typing import Annotated, Any, TypedDict
@@ -18,6 +18,16 @@ from pydantic import create_model
 from .config import get_anthropic_api_key, get_default_model
 
 
+def _run_server_process(
+    name: str, host: str, port: int, funcs: list[Callable[..., Any]]
+) -> None:
+    """Run MCP server in a subprocess."""
+    mcp = FastMCP(name)
+    for func in funcs:
+        mcp.tool()(func)
+    asyncio.run(mcp.run_http_async(host=host, port=port))
+
+
 class PlanningState(TypedDict):
     """State for the planning workflow."""
 
@@ -31,7 +41,7 @@ class PlanningState(TypedDict):
 class AgenticAI:
     """Simple agentic AI with MCP tool serving.
 
-    Example:
+    Example (Server + Agent mode):
         ai = AgenticAI()
 
         def add(a: int, b: int) -> int:
@@ -46,6 +56,10 @@ class AgenticAI:
 
         # Complex tasks with planning
         result = await ai.run_with_planning("Research X, then do Y based on results")
+
+    Example (Client-only mode - connect to existing MCP server):
+        ai = AgenticAI(mcp_url="http://192.168.1.100:8888/mcp")
+        result = await ai.run("Calculate 2+3")
     """
 
     def __init__(
@@ -55,16 +69,26 @@ class AgenticAI:
         port: int = 8888,
         model: str | None = None,
         verbose: bool = False,
+        mcp_url: str | None = None,
     ):
         self.host = host
         self.port = port
         self.model = model or get_default_model()
         self.verbose = verbose
 
-        # MCP server
-        self.mcp = FastMCP(name)
+        # Client-only mode: connect to existing MCP server
+        self._mcp_url = mcp_url
+        self._client_only = mcp_url is not None
+
+        # MCP server (only created if not in client-only mode)
+        self._name = name
+        if not self._client_only:
+            self.mcp = FastMCP(name)
+        else:
+            self.mcp = None  # type: ignore[assignment]
         self._tools: list[str] = []
-        self._server_thread: threading.Thread | None = None
+        self._registered_funcs: list[Callable[..., Any]] = []  # Store funcs for subprocess
+        self._server_process: multiprocessing.Process | None = None
         self._server_running = False
 
         # Agents
@@ -83,20 +107,35 @@ class AgenticAI:
 
         Args:
             func: Function with type hints and docstring
+
+        Raises:
+            RuntimeError: If called in client-only mode
         """
+        if self._client_only:
+            raise RuntimeError("Cannot register tools in client-only mode. Use server mode instead.")
         self.mcp.tool()(func)
         self._tools.append(func.__name__)
+        self._registered_funcs.append(func)  # Store for subprocess
 
     def run_mcp_server(self) -> None:
-        """Start the MCP server in background."""
+        """Start the MCP server in background.
+
+        Raises:
+            RuntimeError: If called in client-only mode
+        """
+        if self._client_only:
+            raise RuntimeError("Cannot start server in client-only mode.")
+
         if self._server_running:
             return
 
-        def _run() -> None:
-            asyncio.run(self.mcp.run_http_async(host=self.host, port=self.port))
-
-        self._server_thread = threading.Thread(target=_run, daemon=True)
-        self._server_thread.start()
+        # Start server in a separate process
+        self._server_process = multiprocessing.Process(
+            target=_run_server_process,
+            args=(self._name, self.host, self.port, self._registered_funcs),
+            daemon=True,
+        )
+        self._server_process.start()
 
         # Wait for server to be ready
         self._wait_for_server()
@@ -105,6 +144,49 @@ class AgenticAI:
         if self.verbose:
             print(f"MCP Server running at http://{self.host}:{self.port}/mcp")
             print(f"Tools: {self.tools}")
+
+    def stop_mcp_server(self) -> None:
+        """Stop the MCP server.
+
+        Raises:
+            RuntimeError: If server is not running
+        """
+        if not self._server_running or self._server_process is None:
+            if self.verbose:
+                print("Server is not running.")
+            return
+
+        self._server_process.terminate()
+        self._server_process.join(timeout=5)
+
+        # Force kill if still alive
+        if self._server_process.is_alive():
+            self._server_process.kill()
+            self._server_process.join(timeout=2)
+
+        self._server_process = None
+        self._server_running = False
+
+        if self.verbose:
+            print("MCP Server stopped.")
+
+    def run_mcp_server_forever(self) -> None:
+        """Start the MCP server and block forever (for server-only use).
+
+        This is useful when you want to run a server that exposes tools
+        without running any agents. The server will run until interrupted.
+
+        Raises:
+            RuntimeError: If called in client-only mode
+        """
+        if self._client_only:
+            raise RuntimeError("Cannot start server in client-only mode.")
+
+        print(f"Starting MCP server at http://{self.host}:{self.port}/mcp")
+        print(f"Tools: {self.tools}")
+        print("Press Ctrl+C to stop...")
+
+        asyncio.run(self.mcp.run_http_async(host=self.host, port=self.port))
 
     def _wait_for_server(self, timeout: float = 10.0) -> None:
         """Wait for server to be ready."""
@@ -127,7 +209,13 @@ class AgenticAI:
 
     async def _load_tools(self) -> None:
         """Load tools from MCP server as LangChain tools."""
-        mcp_url = f"http://{self.host}:{self.port}/mcp"
+        if self._client_only:
+            mcp_url = self._mcp_url
+        else:
+            mcp_url = f"http://{self.host}:{self.port}/mcp"
+
+        if self.verbose:
+            print(f"Loading tools from: {mcp_url}")
 
         async with Client(mcp_url) as client:
             mcp_tools = await client.list_tools()
@@ -136,6 +224,9 @@ class AgenticAI:
         for tool in mcp_tools:
             lc_tool = self._convert_to_langchain(tool, mcp_url)
             self._langchain_tools.append(lc_tool)
+
+        if self.verbose:
+            print(f"Loaded tools: {[t.name for t in self._langchain_tools]}")
 
     def _convert_to_langchain(self, mcp_tool: Any, mcp_url: str) -> StructuredTool:
         """Convert MCP tool to LangChain StructuredTool."""
@@ -200,8 +291,8 @@ class AgenticAI:
         Returns:
             Agent's response
         """
-        # Start server if not running
-        if not self._server_running:
+        # Start server if not running (skip in client-only mode)
+        if not self._client_only and not self._server_running:
             self.run_mcp_server()
 
         # Load tools if not loaded
@@ -258,8 +349,8 @@ class AgenticAI:
         Returns:
             Agent's response
         """
-        # Start server if not running
-        if not self._server_running:
+        # Start server if not running (skip in client-only mode)
+        if not self._client_only and not self._server_running:
             self.run_mcp_server()
 
         # Load tools if not loaded
