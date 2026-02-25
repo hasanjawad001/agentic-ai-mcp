@@ -77,6 +77,7 @@ class AgenticAI:
 
         def _run():
             import asyncio
+
             asyncio.run(self.mcp.run_http_async(host=self.host, port=self.port))
 
         self._server_thread = threading.Thread(target=_run, daemon=True)
@@ -192,14 +193,12 @@ class AgenticAI:
             self._agent = create_react_agent(llm, self._langchain_tools)
 
         if self.verbose:
-            print(f"\n{'='*50}")
+            print(f"\n{'=' * 50}")
             print(f"PROMPT: {prompt}")
-            print(f"{'='*50}\n")
+            print(f"{'=' * 50}\n")
 
         # Run agent
-        result = await self._agent.ainvoke({
-            "messages": [HumanMessage(content=prompt)]
-        })
+        result = await self._agent.ainvoke({"messages": [HumanMessage(content=prompt)]})
 
         # Process and return response
         messages = result.get("messages", [])
@@ -219,9 +218,9 @@ class AgenticAI:
                 print(f"  → {msg.content}\n")
 
         if self.verbose:
-            print(f"{'='*50}")
+            print(f"{'=' * 50}")
             print(f"RESULT: {final_response}")
-            print(f"{'='*50}\n")
+            print(f"{'=' * 50}\n")
 
         return final_response
 

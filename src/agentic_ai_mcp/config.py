@@ -17,4 +17,4 @@ def get_anthropic_api_key() -> str:
 
 def get_default_model() -> str:
     """Get default model from environment."""
-    return os.getenv("DEFAULT_MODEL", "claude-haiku-4-5-20251001") ## claude-sonnet-4-20250514
+    return os.getenv("DEFAULT_MODEL", "claude-haiku-4-5-20251001")  ## claude-sonnet-4-20250514
