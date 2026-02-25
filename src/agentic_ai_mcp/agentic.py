@@ -187,8 +187,8 @@ class AgenticAI:
         # Create agent if not created
         if self._agent is None:
             llm = ChatAnthropic(
-                model=self.model,
-                api_key=get_anthropic_api_key(),
+                model=self.model,  # type: ignore[call-arg]
+                api_key=get_anthropic_api_key(),  # type: ignore[arg-type]
             )
             self._agent = create_react_agent(llm, self._langchain_tools)
 
