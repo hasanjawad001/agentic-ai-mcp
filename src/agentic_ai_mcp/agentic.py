@@ -207,8 +207,6 @@ class AgenticAI:
         step = 0
 
         for msg in messages:
-            if isinstance(msg, HumanMessage):   
-                pass
             if isinstance(msg, AIMessage):
                 if hasattr(msg, "tool_calls") and msg.tool_calls:
                     for tc in msg.tool_calls:
