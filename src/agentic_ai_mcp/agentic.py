@@ -1,131 +1,97 @@
-"""Unified AgenticAI interface - simple one-class solution."""
+"""AgenticAI - Simple agentic AI with MCP tools."""
 
 import asyncio
-import inspect
-import os
-import subprocess
-import sys
-import tempfile
+import threading
 import time
 from collections.abc import Callable
 from typing import Any
 
-from .config import get_default_model
-from .workflow import AgenticWorkflow
+from fastmcp import Client, FastMCP
+from langchain_anthropic import ChatAnthropic
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.tools import StructuredTool
+from langgraph.prebuilt import create_react_agent
+from pydantic import create_model
+
+from .config import get_anthropic_api_key, get_default_model
 
 
 class AgenticAI:
-    """Unified interface for agentic AI with automatic MCP server management.
+    """Simple agentic AI with MCP tool serving.
 
     Example:
-        from agentic_ai_mcp import AgenticAI
-
         ai = AgenticAI()
 
         def add(a: int, b: int) -> int:
             '''Add two numbers.'''
             return a + b
 
-        def greet(name: str, times: int = 1) -> str:
-            '''Greet someone.'''
-            return ("Hello, " + name + "! ") * times
-
         ai.register_tool(add)
-        ai.register_tool(greet)
+        ai.run_mcp_server()
 
-        result = await ai.run("Calculate 2+3 and greet Tom the result times")
+        result = await ai.run("Calculate 2+3")
+        print(result)
     """
 
     def __init__(
         self,
+        name: str = "agentic-ai",
         host: str = "127.0.0.1",
         port: int = 8888,
         model: str | None = None,
-        max_iterations: int = 10,
+        verbose: bool = True,
     ):
-        """Initialize AgenticAI.
-
-        Args:
-            host: Host for the MCP server (default: 127.0.0.1)
-            port: Port for the MCP server (default: 8888)
-            model: LLM model to use (default: from env or claude-sonnet-4-20250514)
-            max_iterations: Maximum agent iterations (default: 10)
-        """
         self.host = host
         self.port = port
         self.model = model or get_default_model()
-        self.max_iterations = max_iterations
-        self._tools: dict[str, tuple[Callable[..., Any], str]] = {}
-        self._server_process: subprocess.Popen[bytes] | None = None
-        self._temp_file: str | None = None
+        self.verbose = verbose
+
+        # MCP server
+        self.mcp = FastMCP(name)
+        self._tools: list[str] = []
+        self._server_thread: threading.Thread | None = None
+        self._server_running = False
+
+        # Agent
+        self._agent: Any = None
+        self._langchain_tools: list[StructuredTool] = []
 
     @property
     def tools(self) -> list[str]:
         """List of registered tool names."""
-        return list(self._tools.keys())
+        return self._tools.copy()
 
     def register_tool(self, func: Callable[..., Any]) -> None:
-        """Register a function as a tool.
+        """Register a function as an MCP tool.
 
         Args:
-            func: The function to register. Must have type hints and a docstring.
-
-        Example:
-            def multiply(a: int, b: int) -> int:
-                '''Multiply two numbers.'''
-                return a * b
-
-            ai.register_tool(multiply)
+            func: Function with type hints and docstring
         """
-        source = inspect.getsource(func)
-        self._tools[func.__name__] = (func, source)
+        self.mcp.tool()(func)
+        self._tools.append(func.__name__)
 
-    def _generate_server_code(self) -> str:
-        """Generate the MCP server code with registered tools."""
-        tool_sources = "\n\n".join(source for _, source in self._tools.values())
-        tool_registrations = "\n".join(
-            f"server.add_tool({name})" for name in self._tools
-        )
+    def run_mcp_server(self) -> None:
+        """Start the MCP server in background."""
+        if self._server_running:
+            return
 
-        return f'''"""Auto-generated MCP server."""
-from agentic_ai_mcp import MCPServer
+        def _run():
+            import asyncio
+            asyncio.run(self.mcp.run_http_async(host=self.host, port=self.port))
 
-server = MCPServer(host="{self.host}", port={self.port})
-
-{tool_sources}
-
-{tool_registrations}
-
-if __name__ == "__main__":
-    server.run()
-'''
-
-    def _start_server(self) -> None:
-        """Start the MCP server in a subprocess."""
-        if not self._tools:
-            raise RuntimeError("No tools registered. Use ai.register_tool(func) first.")
-
-        # Create temp file with server code
-        code = self._generate_server_code()
-
-        fd, self._temp_file = tempfile.mkstemp(suffix=".py", prefix="agentic_server_")
-        try:
-            os.write(fd, code.encode())
-        finally:
-            os.close(fd)
-
-        # Start subprocess
-        self._server_process = subprocess.Popen(
-            [sys.executable, self._temp_file],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
+        self._server_thread = threading.Thread(target=_run, daemon=True)
+        self._server_thread.start()
 
         # Wait for server to be ready
         self._wait_for_server()
+        self._server_running = True
+
+        if self.verbose:
+            print(f"MCP Server running at http://{self.host}:{self.port}/mcp")
+            print(f"Tools: {self.tools}")
 
     def _wait_for_server(self, timeout: float = 10.0) -> None:
-        """Wait for the MCP server to be ready."""
+        """Wait for server to be ready."""
         import socket
 
         start = time.time()
@@ -133,71 +99,135 @@ if __name__ == "__main__":
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.settimeout(1)
-                result = sock.connect_ex((self.host, self.port))
-                sock.close()
-                if result == 0:
-                    # Give it a moment to fully initialize
+                if sock.connect_ex((self.host, self.port)) == 0:
+                    sock.close()
                     time.sleep(0.5)
                     return
+                sock.close()
             except OSError:
                 pass
             time.sleep(0.2)
+        raise TimeoutError(f"Server did not start within {timeout}s")
 
-        raise TimeoutError(f"MCP server did not start within {timeout} seconds")
+    async def _load_tools(self) -> None:
+        """Load tools from MCP server as LangChain tools."""
+        mcp_url = f"http://{self.host}:{self.port}/mcp"
 
-    def _stop_server(self) -> None:
-        """Stop the MCP server subprocess."""
-        if self._server_process:
-            self._server_process.terminate()
-            try:
-                self._server_process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self._server_process.kill()
-                self._server_process.wait()
-            self._server_process = None
+        async with Client(mcp_url) as client:
+            mcp_tools = await client.list_tools()
 
-        # Clean up temp file
-        if self._temp_file and os.path.exists(self._temp_file):
-            os.unlink(self._temp_file)
-            self._temp_file = None
+        self._langchain_tools = []
+        for tool in mcp_tools:
+            lc_tool = self._convert_to_langchain(tool, mcp_url)
+            self._langchain_tools.append(lc_tool)
+
+    def _convert_to_langchain(self, mcp_tool: Any, mcp_url: str) -> StructuredTool:
+        """Convert MCP tool to LangChain StructuredTool."""
+        schema = mcp_tool.inputSchema if hasattr(mcp_tool, "inputSchema") else {}
+        args_model = self._create_args_model(schema)
+
+        def call_tool(**kwargs: Any) -> Any:
+            async def _call():
+                async with Client(mcp_url) as client:
+                    return await client.call_tool(mcp_tool.name, kwargs)
+            return asyncio.get_event_loop().run_until_complete(_call())
+
+        async def acall_tool(**kwargs: Any) -> Any:
+            async with Client(mcp_url) as client:
+                return await client.call_tool(mcp_tool.name, kwargs)
+
+        return StructuredTool(
+            name=mcp_tool.name,
+            description=mcp_tool.description or mcp_tool.name,
+            func=call_tool,
+            coroutine=acall_tool,
+            args_schema=args_model,
+        )
+
+    def _create_args_model(self, schema: dict[str, Any]) -> Any:
+        """Create Pydantic model from JSON schema."""
+        if not schema or "properties" not in schema:
+            return None
+
+        properties = schema.get("properties", {})
+        required = set(schema.get("required", []))
+
+        type_map = {
+            "string": str,
+            "integer": int,
+            "number": float,
+            "boolean": bool,
+        }
+
+        fields: dict[str, Any] = {}
+        for name, prop in properties.items():
+            prop_type = type_map.get(prop.get("type", "string"), str)
+            if name in required:
+                fields[name] = (prop_type, ...)
+            else:
+                fields[name] = (prop_type | None, None)
+
+        return create_model("ToolArgs", **fields)
 
     async def run(self, prompt: str) -> str:
-        """Run an agentic workflow with the given prompt.
-
-        This method:
-        1. Starts an MCP server with registered tools (subprocess)
-        2. Runs the agentic workflow with the prompt
-        3. Returns the result
-        4. Cleans up the server
+        """Run the agent with a prompt.
 
         Args:
-            prompt: The task/prompt for the agent
+            prompt: Task for the agent
 
         Returns:
-            The agent's final response
+            Agent's response
         """
-        try:
-            self._start_server()
+        # Start server if not running
+        if not self._server_running:
+            self.run_mcp_server()
 
-            mcp_url = f"http://{self.host}:{self.port}/mcp"
-            workflow = AgenticWorkflow(
-                mcp_url=mcp_url,
+        # Load tools if not loaded
+        if not self._langchain_tools:
+            await self._load_tools()
+
+        # Create agent if not created
+        if self._agent is None:
+            llm = ChatAnthropic(
                 model=self.model,
-                max_iterations=self.max_iterations,
+                api_key=get_anthropic_api_key(),
             )
+            self._agent = create_react_agent(llm, self._langchain_tools)
 
-            result = await workflow.run(prompt)
-            return result
-        finally:
-            self._stop_server()
+        if self.verbose:
+            print(f"\n{'='*50}")
+            print(f"PROMPT: {prompt}")
+            print(f"{'='*50}\n")
+
+        # Run agent
+        result = await self._agent.ainvoke({
+            "messages": [HumanMessage(content=prompt)]
+        })
+
+        # Process and return response
+        messages = result.get("messages", [])
+        final_response = "No response"
+        step = 0
+
+        for msg in messages:
+            if isinstance(msg, AIMessage):
+                if hasattr(msg, "tool_calls") and msg.tool_calls:
+                    for tc in msg.tool_calls:
+                        step += 1
+                        if self.verbose:
+                            print(f"STEP {step}: {tc['name']}({tc['args']})")
+                if msg.content and not (hasattr(msg, "tool_calls") and msg.tool_calls):
+                    final_response = str(msg.content)
+            elif isinstance(msg, ToolMessage) and self.verbose:
+                print(f"  → {msg.content}\n")
+
+        if self.verbose:
+            print(f"{'='*50}")
+            print(f"RESULT: {final_response}")
+            print(f"{'='*50}\n")
+
+        return final_response
 
     def run_sync(self, prompt: str) -> str:
-        """Synchronous version of run().
-
-        Args:
-            prompt: The task/prompt for the agent
-
-        Returns:
-            The agent's final response
-        """
+        """Synchronous version of run()."""
         return asyncio.run(self.run(prompt))
