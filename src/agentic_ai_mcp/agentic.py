@@ -39,7 +39,7 @@ class AgenticAI:
         host: str = "127.0.0.1",
         port: int = 8888,
         model: str | None = None,
-        verbose: bool = True,
+        verbose: bool = False,
     ):
         self.host = host
         self.port = port
