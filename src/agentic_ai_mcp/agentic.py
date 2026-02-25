@@ -348,27 +348,35 @@ Respond with ONLY a numbered list of steps, nothing else. Example:
             step = plan[current_step]
 
             if verbose:
-                print(f"EXECUTING STEP {current_step + 1}: {step}")
+                print(f"EXECUTING STEP {current_step + 1}/{len(plan)}: {step}")
+                print("-" * 40)
 
             # Create a mini ReAct agent for this step
             step_agent = create_react_agent(llm, tools)
             result = await step_agent.ainvoke({"messages": [HumanMessage(content=step)]})
 
-            # Extract result
+            # Extract result and show all messages if verbose
             messages = result.get("messages", [])
             step_result = "No result"
-            for msg in reversed(messages):
-                if (
-                    isinstance(msg, AIMessage)
-                    and msg.content
-                    and not (hasattr(msg, "tool_calls") and msg.tool_calls)
-                ):
-                    step_result = str(msg.content)
-                    break
+            tool_call_count = 0
+
+            for msg in messages:
+                if isinstance(msg, AIMessage):
+                    if hasattr(msg, "tool_calls") and msg.tool_calls:
+                        for tc in msg.tool_calls:
+                            tool_call_count += 1
+                            if verbose:
+                                print(f"  TOOL CALL {tool_call_count}: {tc['name']}({tc['args']})")
+                    elif msg.content:
+                        step_result = str(msg.content)
+                        if verbose:
+                            print(f"  AI RESPONSE: {msg.content}")
+                elif isinstance(msg, ToolMessage) and verbose:
+                    print(f"    → {msg.content}")
 
             if verbose:
-                print(f"  RESULT: {step_result[:100]}...")
-                print()
+                print("-" * 40)
+                print(f"STEP {current_step + 1} COMPLETE\n")
 
             return {
                 "step_results": [f"Step {current_step + 1}: {step_result}"],
@@ -387,7 +395,15 @@ Respond with ONLY a numbered list of steps, nothing else. Example:
             step_results = state["step_results"]
 
             if verbose:
-                print("SYNTHESIZING RESULTS...")
+                print("=" * 50)
+                print("SYNTHESIZING RESULTS")
+                print("=" * 50)
+                print(f"Original task: {task}")
+                print()
+                print("Step results collected:")
+                for result in step_results:
+                    print(f"  • {result}")
+                print()
 
             synth_prompt = f"""You completed a multi-step task. Synthesize the results into a final response.
 
@@ -398,7 +414,14 @@ Step results:
 
 Provide a clear, concise final response that addresses the original task."""
 
+            if verbose:
+                print("Sending synthesis prompt...")
+
             response = await llm.ainvoke([HumanMessage(content=synth_prompt)])
+
+            if verbose:
+                print(f"Synthesis complete.")
+                print("=" * 50)
 
             return {"final_result": str(response.content)}
 
