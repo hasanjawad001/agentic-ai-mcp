@@ -1,19 +1,31 @@
 """AgenticAI - Simple agentic AI with MCP tools."""
 
 import asyncio
+import operator
 import threading
 import time
 from collections.abc import Callable
-from typing import Any
+from typing import Annotated, Any, TypedDict
 
 from fastmcp import Client, FastMCP
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import StructuredTool
+from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import create_react_agent
 from pydantic import create_model
 
 from .config import get_anthropic_api_key, get_default_model
+
+
+class PlanningState(TypedDict):
+    """State for the planning workflow."""
+
+    task: str
+    plan: list[str]
+    current_step: int
+    step_results: Annotated[list[str], operator.add]
+    final_result: str
 
 
 class AgenticAI:
@@ -29,8 +41,11 @@ class AgenticAI:
         ai.register_tool(add)
         ai.run_mcp_server()
 
+        # Simple execution
         result = await ai.run("Calculate 2+3")
-        print(result)
+
+        # Complex tasks with planning
+        result = await ai.run_with_planning("Research X, then do Y based on results")
     """
 
     def __init__(
@@ -52,9 +67,11 @@ class AgenticAI:
         self._server_thread: threading.Thread | None = None
         self._server_running = False
 
-        # Agent
+        # Agents
         self._agent: Any = None
+        self._planning_workflow: Any = None
         self._langchain_tools: list[StructuredTool] = []
+        self._llm: ChatAnthropic | None = None
 
     @property
     def tools(self) -> list[str]:
@@ -75,9 +92,7 @@ class AgenticAI:
         if self._server_running:
             return
 
-        def _run():
-            import asyncio
-
+        def _run() -> None:
             asyncio.run(self.mcp.run_http_async(host=self.host, port=self.port))
 
         self._server_thread = threading.Thread(target=_run, daemon=True)
@@ -167,8 +182,17 @@ class AgenticAI:
 
         return create_model("ToolArgs", **fields)
 
+    def _get_llm(self) -> ChatAnthropic:
+        """Get or create LLM instance."""
+        if self._llm is None:
+            self._llm = ChatAnthropic(
+                model=self.model,  # type: ignore[call-arg]
+                api_key=get_anthropic_api_key(),  # type: ignore[arg-type]
+            )
+        return self._llm
+
     async def run(self, prompt: str) -> str:
-        """Run the agent with a prompt.
+        """Run the agent with a prompt (simple ReAct).
 
         Args:
             prompt: Task for the agent
@@ -186,11 +210,7 @@ class AgenticAI:
 
         # Create agent if not created
         if self._agent is None:
-            llm = ChatAnthropic(
-                model=self.model,  # type: ignore[call-arg]
-                api_key=get_anthropic_api_key(),  # type: ignore[arg-type]
-            )
-            self._agent = create_react_agent(llm, self._langchain_tools)
+            self._agent = create_react_agent(self._get_llm(), self._langchain_tools)
 
         if self.verbose:
             print(f"\n{'=' * 50}")
@@ -224,6 +244,184 @@ class AgenticAI:
 
         return final_response
 
+    async def run_with_planning(self, prompt: str) -> str:
+        """Run the agent with planning for complex tasks.
+
+        Uses LangGraph StateGraph to:
+        1. Plan: Break down the task into steps
+        2. Execute: Run each step with tools
+        3. Synthesize: Combine results into final response
+
+        Args:
+            prompt: Complex task for the agent
+
+        Returns:
+            Agent's response
+        """
+        # Start server if not running
+        if not self._server_running:
+            self.run_mcp_server()
+
+        # Load tools if not loaded
+        if not self._langchain_tools:
+            await self._load_tools()
+
+        # Create planning workflow if not created
+        if self._planning_workflow is None:
+            self._planning_workflow = self._create_planning_workflow()
+
+        if self.verbose:
+            print(f"\n{'=' * 50}")
+            print("PLANNING MODE")
+            print(f"TASK: {prompt}")
+            print(f"{'=' * 50}\n")
+
+        # Run planning workflow
+        initial_state: PlanningState = {
+            "task": prompt,
+            "plan": [],
+            "current_step": 0,
+            "step_results": [],
+            "final_result": "",
+        }
+
+        result = await self._planning_workflow.ainvoke(initial_state)
+
+        if self.verbose:
+            print(f"\n{'=' * 50}")
+            print(f"FINAL RESULT: {result['final_result']}")
+            print(f"{'=' * 50}\n")
+
+        return str(result["final_result"])
+
+    def _create_planning_workflow(self) -> Any:
+        """Create the planning workflow using LangGraph."""
+        llm = self._get_llm()
+        tools = self._langchain_tools
+        verbose = self.verbose
+
+        # Planner node: breaks down the task
+        async def planner(state: PlanningState) -> dict[str, Any]:
+            task = state["task"]
+
+            plan_prompt = f"""Break down this task into clear, executable steps.
+Each step should be a single action that can be done with the available tools.
+
+Available tools: {[t.name + ": " + t.description for t in tools]}
+
+Task: {task}
+
+Respond with ONLY a numbered list of steps, nothing else. Example:
+1. First step
+2. Second step
+3. Third step"""
+
+            response = await llm.ainvoke([HumanMessage(content=plan_prompt)])
+            plan_text = str(response.content)
+
+            # Parse steps
+            steps = []
+            for line in plan_text.strip().split("\n"):
+                line = line.strip()
+                if line and line[0].isdigit():
+                    # Remove numbering
+                    step = line.lstrip("0123456789.").strip()
+                    if step:
+                        steps.append(step)
+
+            if verbose:
+                print("PLAN:")
+                for i, step in enumerate(steps, 1):
+                    print(f"  {i}. {step}")
+                print()
+
+            return {"plan": steps, "current_step": 0}
+
+        # Executor node: executes one step at a time
+        async def executor(state: PlanningState) -> dict[str, Any]:
+            plan = state["plan"]
+            current_step = state["current_step"]
+
+            if current_step >= len(plan):
+                return {"current_step": current_step}
+
+            step = plan[current_step]
+
+            if verbose:
+                print(f"EXECUTING STEP {current_step + 1}: {step}")
+
+            # Create a mini ReAct agent for this step
+            step_agent = create_react_agent(llm, tools)
+            result = await step_agent.ainvoke({"messages": [HumanMessage(content=step)]})
+
+            # Extract result
+            messages = result.get("messages", [])
+            step_result = "No result"
+            for msg in reversed(messages):
+                if (
+                    isinstance(msg, AIMessage)
+                    and msg.content
+                    and not (hasattr(msg, "tool_calls") and msg.tool_calls)
+                ):
+                    step_result = str(msg.content)
+                    break
+
+            if verbose:
+                print(f"  RESULT: {step_result[:100]}...")
+                print()
+
+            return {
+                "step_results": [f"Step {current_step + 1}: {step_result}"],
+                "current_step": current_step + 1,
+            }
+
+        # Check if more steps to execute
+        def should_continue(state: PlanningState) -> str:
+            if state["current_step"] < len(state["plan"]):
+                return "executor"
+            return "synthesizer"
+
+        # Synthesizer node: combines all results
+        async def synthesizer(state: PlanningState) -> dict[str, Any]:
+            task = state["task"]
+            step_results = state["step_results"]
+
+            if verbose:
+                print("SYNTHESIZING RESULTS...")
+
+            synth_prompt = f"""You completed a multi-step task. Synthesize the results into a final response.
+
+Original task: {task}
+
+Step results:
+{chr(10).join(step_results)}
+
+Provide a clear, concise final response that addresses the original task."""
+
+            response = await llm.ainvoke([HumanMessage(content=synth_prompt)])
+
+            return {"final_result": str(response.content)}
+
+        # Build the graph
+        workflow = StateGraph(PlanningState)
+
+        # Add nodes
+        workflow.add_node("planner", planner)
+        workflow.add_node("executor", executor)
+        workflow.add_node("synthesizer", synthesizer)
+
+        # Add edges
+        workflow.set_entry_point("planner")
+        workflow.add_edge("planner", "executor")
+        workflow.add_conditional_edges("executor", should_continue)
+        workflow.add_edge("synthesizer", END)
+
+        return workflow.compile()
+
     def run_sync(self, prompt: str) -> str:
         """Synchronous version of run()."""
         return asyncio.run(self.run(prompt))
+
+    def run_with_planning_sync(self, prompt: str) -> str:
+        """Synchronous version of run_with_planning()."""
+        return asyncio.run(self.run_with_planning(prompt))
