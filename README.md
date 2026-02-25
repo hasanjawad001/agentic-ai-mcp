@@ -1,6 +1,6 @@
 # Agentic AI MCP
 
-Lightweight agentic AI with MCP tools.
+Lightweight agentic AI with MCP tools. Supports distributed setups where tools run on one machine and agents on another.
 
 ## Install
 
@@ -10,17 +10,26 @@ pip install agentic-ai-mcp
 
 ## Setup
 
-Set your Anthropic API key in `.env` file:
+Set your Anthropic API key in `.env` file (only needed on the client/agent machine):
 ```bash
 ANTHROPIC_API_KEY=sk-...
 ```
 
+## Quick Start
+
+See the example notebooks:
+- [`examples/quickstart_server.ipynb`](examples/quickstart_server.ipynb) - Run on machine exposing tools
+- [`examples/quickstart_client.ipynb`](examples/quickstart_client.ipynb) - Run on machine executing agents
+
 ## Usage
+
+### Server Mode (expose tools)
+
+Run this on the machine where you want to host tools:
 
 ```python
 from agentic_ai_mcp import AgenticAI
 
-# 1. Define functions
 def add(a: int, b: int) -> int:
     """Add two numbers."""
     return a + b
@@ -29,27 +38,46 @@ def greet(name: str, times: int = 1) -> str:
     """Greet someone."""
     return ("Hello, " + name + "! ") * times
 
-# 2. Create AgenticAI and register tools
-ai = AgenticAI()
+# Create and register tools
+ai = AgenticAI(host="0.0.0.0", port=8888, verbose=True)
 ai.register_tool(add)
 ai.register_tool(greet)
 
-# 3. Run MCP server
+# Start server
 ai.run_mcp_server()
 
-# 4. Execute agentic workflow
+# Stop when done
+ai.stop_mcp_server()
+```
+
+### Client Mode (run agents)
+
+Run this on another machine to connect to the server and execute agents:
+
+```python
+from agentic_ai_mcp import AgenticAI
+
+# Connect to remote MCP server
+ai = AgenticAI(mcp_url="http://<server-ip>:8888/mcp", verbose=True)
+
+# Simple agent workflow
 result = await ai.run("Calculate 2+3 and greet Tom the result times")
 print(result)
 
-# 5. For complex tasks, use planning 
+# Planning-based workflow for complex tasks
 result = await ai.run_with_planning("First calculate 10+20, then greet Alice that many times")
 print(result)
 ```
 
 ## Methods
 
-- `ai.run(prompt)` - Simple agent workflow for simpler tasks
-- `ai.run_with_planning(prompt)` - Planning-based workflow for complex multi-step tasks (planning, executing, synthesizing)
+| Method | Description |
+|--------|-------------|
+| `ai.register_tool(func)` | Register a function as an MCP tool |
+| `ai.run_mcp_server()` | Start MCP server in background |
+| `ai.stop_mcp_server()` | Stop the MCP server |
+| `ai.run(prompt)` | Simple agent workflow |
+| `ai.run_with_planning(prompt)` | Planning-based workflow (plan → execute → synthesize) |
 
 ## License
 
