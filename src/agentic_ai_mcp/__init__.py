@@ -1,25 +1,47 @@
 """
-Agentic AI Framework - A production-grade multi-agent orchestration system.
+Agentic AI MCP - A lightweight agentic AI framework with MCP tool serving.
 
-This framework provides:
-- Multi-agent orchestration using LangGraph
-- MCP (Model Context Protocol) integration for tool serving
-- Extensible agent and tool architectures
-- Type-safe, async-first design
+Simple usage:
+
+    from agentic_ai_mcp import AgenticAI
+
+    ai = AgenticAI()
+
+    def add(a: int, b: int) -> int:
+        '''Add two numbers.'''
+        return a + b
+
+    def greet(name: str, times: int = 1) -> str:
+        '''Greet someone.'''
+        return ("Hello, " + name + "! ") * times
+
+    ai.register_tool(add)
+    ai.register_tool(greet)
+
+    result = await ai.run("Calculate 2+3 and greet Tom the result times")
+    print(result)
+
+For advanced usage (separate server/client), see MCPServer and AgenticWorkflow.
 """
 
-from agentic_ai_mcp.core.base_agent import BaseAgent
-from agentic_ai_mcp.core.state import AgentState, WorkflowState
-from agentic_ai_mcp.orchestration.workflow import AgenticWorkflow
-from agentic_ai_mcp.tools.registry import ToolRegistry
+from agentic_ai_mcp.agentic import AgenticAI
+from agentic_ai_mcp.bridge import MCPToolBridge
+from agentic_ai_mcp.server import MCPServer, create_server
+from agentic_ai_mcp.workflow import AgenticWorkflow, run_workflow
 
-__version__ = "0.3.0"
+__version__ = "0.5.0"
 
 __all__ = [
-    "BaseAgent",
-    "AgentState",
-    "WorkflowState",
+    # Main interface
+    "AgenticAI",
+    # Advanced: Server
+    "MCPServer",
+    "create_server",
+    # Advanced: Bridge
+    "MCPToolBridge",
+    # Advanced: Workflow
     "AgenticWorkflow",
-    "ToolRegistry",
+    "run_workflow",
+    # Version
     "__version__",
 ]
