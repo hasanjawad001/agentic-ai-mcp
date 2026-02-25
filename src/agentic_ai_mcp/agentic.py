@@ -209,10 +209,7 @@ class AgenticAI:
 
     async def _load_tools(self) -> None:
         """Load tools from MCP server as LangChain tools."""
-        if self._client_only:
-            mcp_url = self._mcp_url
-        else:
-            mcp_url = f"http://{self.host}:{self.port}/mcp"
+        mcp_url = self._mcp_url if self._client_only else f"http://{self.host}:{self.port}/mcp"
 
         if self.verbose:
             print(f"Loading tools from: {mcp_url}")
@@ -511,7 +508,7 @@ Provide a clear, concise final response that addresses the original task."""
             response = await llm.ainvoke([HumanMessage(content=synth_prompt)])
 
             if verbose:
-                print(f"Synthesis complete.")
+                print("Synthesis complete.")
                 print("=" * 50)
 
             return {"final_result": str(response.content)}

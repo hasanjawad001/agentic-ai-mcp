@@ -39,7 +39,7 @@ def greet(name: str, times: int = 1) -> str:
     return ("Hello, " + name + "! ") * times
 
 # Create and register tools
-ai = AgenticAI(host="0.0.0.0", port=8888, verbose=True)
+ai = AgenticAI(host="0.0.0.0", port=8888)
 ai.register_tool(add)
 ai.register_tool(greet)
 
@@ -58,14 +58,14 @@ Run this on another machine to connect to the server and execute agents:
 from agentic_ai_mcp import AgenticAI
 
 # Connect to remote MCP server
-ai = AgenticAI(mcp_url="http://<server-ip>:8888/mcp", verbose=True)
+ai = AgenticAI(mcp_url="http://<server-ip>:8888/mcp")
 
 # Simple agent workflow
 result = await ai.run("Calculate 2+3 and greet Tom the result times")
 print(result)
 
 # Planning-based workflow for complex tasks
-result = await ai.run_with_planning("First calculate 10+20, then greet Alice that many times")
+result = await ai.run_with_planning("First calculate ((1+2)+(1+1)+3), then greet Alice that many times")
 print(result)
 ```
 
