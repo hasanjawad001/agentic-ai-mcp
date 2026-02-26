@@ -22,9 +22,7 @@ from pydantic import create_model
 from .config import get_anthropic_api_key, get_default_model
 
 
-def _run_server_process(
-    name: str, host: str, port: int, funcs: list[Callable[..., Any]]
-) -> None:
+def _run_server_process(name: str, host: str, port: int, funcs: list[Callable[..., Any]]) -> None:
     """Run MCP server in a subprocess."""
     mcp = FastMCP(name)
     for func in funcs:
@@ -113,7 +111,9 @@ class AgenticAI:
             RuntimeError: If called in client-only mode
         """
         if self._client_only:
-            raise RuntimeError("Cannot register tools in client-only mode. Use server mode instead.")
+            raise RuntimeError(
+                "Cannot register tools in client-only mode. Use server mode instead."
+            )
         self._registered_funcs.append(func)
 
     def run_mcp_server(self) -> None:
@@ -435,7 +435,6 @@ Example for task "calculate 2+3, then greet Bob that many times":
 Example for task "multiply 4 and 5, then add 10":
 1. Use multiply(a=4, b=5) to get the product
 2. Use add(a=result from step 1, b=10) to add 10"""
-
 
             response = await llm.ainvoke([HumanMessage(content=plan_prompt)])
             plan_text = str(response.content)
