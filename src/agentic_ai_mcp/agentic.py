@@ -2,6 +2,8 @@
 
 import asyncio
 import contextlib
+import functools
+import inspect
 import multiprocessing
 import operator
 import os
@@ -101,6 +103,26 @@ class AgenticAI:
         tools = [f.__name__ for f in rf]
         return tools
 
+    def _wrap_tool_result(self, func: Callable[..., Any]) -> Callable[..., dict[str, Any]]:
+        """Wrap function to return {"result": <original_return>}.
+
+        This ensures all tool returns are dicts, which is required for
+        MCP structured_content to work correctly with non-dict types
+        like lists, arrays, and scalars.
+        """
+
+        @functools.wraps(func)
+        async def async_wrapper(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            result = await func(*args, **kwargs)
+            return {"result": result}
+
+        @functools.wraps(func)
+        def sync_wrapper(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            result = func(*args, **kwargs)
+            return {"result": result}
+
+        return async_wrapper if inspect.iscoroutinefunction(func) else sync_wrapper
+
     def register_tool(self, func: Callable[..., Any]) -> None:
         """Register a function as an MCP tool.
 
@@ -114,7 +136,8 @@ class AgenticAI:
             raise RuntimeError(
                 "Cannot register tools in client-only mode. Use server mode instead."
             )
-        self._registered_funcs.append(func)
+        wrapped_func = self._wrap_tool_result(func)
+        self._registered_funcs.append(wrapped_func)
 
     def run_mcp_server(self) -> None:
         """Start the MCP server in background.
