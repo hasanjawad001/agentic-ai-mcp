@@ -1,6 +1,7 @@
 """AgenticAI - Simple/Complex agentic AI workflow with MCP tools."""
 
 import asyncio
+import contextlib
 import multiprocessing
 import operator
 import os
@@ -154,10 +155,8 @@ class AgenticAI:
 
         # clean up process reference
         if self._server_process is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self._server_process.join(timeout=1)
-            except Exception:
-                pass
             self._server_process = None
 
         self._server_running = False
@@ -183,10 +182,8 @@ class AgenticAI:
         """Kill any process using the server port."""
         pids = self._get_pids_on_port()
         for pid in pids:
-            try:
+            with contextlib.suppress(ProcessLookupError, OSError):
                 os.kill(pid, signal.SIGKILL)
-            except (ProcessLookupError, OSError):
-                pass
 
         time.sleep(0.5)
 
