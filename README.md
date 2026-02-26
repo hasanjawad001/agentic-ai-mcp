@@ -77,7 +77,7 @@ print(result)
 | `ai.run_mcp_server()` | Start MCP server in background |
 | `ai.stop_mcp_server()` | Stop the MCP server |
 | `ai.run(prompt)` | Simple agent workflow |
-| `ai.run_with_planning(prompt)` | Planning-based workflow (plan → execute → synthesize) |
+| `ai.run_with_planning(prompt)` | Complex agent workflow |
 
 ## License
 

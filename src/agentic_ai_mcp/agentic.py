@@ -1,4 +1,4 @@
-"""AgenticAI - Simple agentic AI with MCP tools."""
+"""AgenticAI - Simple/Complex agentic AI workflow with MCP tools."""
 
 import asyncio
 import multiprocessing
@@ -39,7 +39,7 @@ class PlanningState(TypedDict):
 
 
 class AgenticAI:
-    """Simple agentic AI with MCP tool serving.
+    """Simple/Complex agentic AI workflow with MCP tool serving.
 
     Example (Server + Agent mode):
         ai = AgenticAI()
@@ -76,22 +76,18 @@ class AgenticAI:
         self.model = model or get_default_model()
         self.verbose = verbose
 
-        # Client-only mode: connect to existing MCP server
+        # client-only mode: connect to existing MCP server
         self._mcp_url = mcp_url
         self._client_only = mcp_url is not None
 
-        # MCP server (only created if not in client-only mode)
+        # MCP server config
         self._name = name
-        if not self._client_only:
-            self.mcp = FastMCP(name)
-        else:
-            self.mcp = None  # type: ignore[assignment]
         self._tools: list[str] = []
-        self._registered_funcs: list[Callable[..., Any]] = []  # Store funcs for subprocess
+        self._registered_funcs: list[Callable[..., Any]] = []  # store funcs for subprocess
         self._server_process: multiprocessing.Process | None = None
         self._server_running = False
 
-        # Agents
+        # agentic
         self._agent: Any = None
         self._planning_workflow: Any = None
         self._langchain_tools: list[StructuredTool] = []
@@ -113,9 +109,8 @@ class AgenticAI:
         """
         if self._client_only:
             raise RuntimeError("Cannot register tools in client-only mode. Use server mode instead.")
-        self.mcp.tool()(func)
         self._tools.append(func.__name__)
-        self._registered_funcs.append(func)  # Store for subprocess
+        self._registered_funcs.append(func)
 
     def run_mcp_server(self) -> None:
         """Start the MCP server in background.
@@ -129,7 +124,7 @@ class AgenticAI:
         if self._server_running:
             return
 
-        # Start server in a separate process
+        # start server in a separate process
         self._server_process = multiprocessing.Process(
             target=_run_server_process,
             args=(self._name, self.host, self.port, self._registered_funcs),
@@ -137,7 +132,7 @@ class AgenticAI:
         )
         self._server_process.start()
 
-        # Wait for server to be ready
+        # wait for server to be ready
         self._wait_for_server()
         self._server_running = True
 
@@ -159,7 +154,7 @@ class AgenticAI:
         self._server_process.terminate()
         self._server_process.join(timeout=5)
 
-        # Force kill if still alive
+        # validation
         if self._server_process.is_alive():
             self._server_process.kill()
             self._server_process.join(timeout=2)
@@ -169,24 +164,6 @@ class AgenticAI:
 
         if self.verbose:
             print("MCP Server stopped.")
-
-    def run_mcp_server_forever(self) -> None:
-        """Start the MCP server and block forever (for server-only use).
-
-        This is useful when you want to run a server that exposes tools
-        without running any agents. The server will run until interrupted.
-
-        Raises:
-            RuntimeError: If called in client-only mode
-        """
-        if self._client_only:
-            raise RuntimeError("Cannot start server in client-only mode.")
-
-        print(f"Starting MCP server at http://{self.host}:{self.port}/mcp")
-        print(f"Tools: {self.tools}")
-        print("Press Ctrl+C to stop...")
-
-        asyncio.run(self.mcp.run_http_async(host=self.host, port=self.port))
 
     def _wait_for_server(self, timeout: float = 10.0) -> None:
         """Wait for server to be ready."""
@@ -288,15 +265,15 @@ class AgenticAI:
         Returns:
             Agent's response
         """
-        # Start server if not running (skip in client-only mode)
+        # start server if not running (skip in client-only mode)
         if not self._client_only and not self._server_running:
             self.run_mcp_server()
 
-        # Load tools if not loaded
+        # load tools if not loaded
         if not self._langchain_tools:
             await self._load_tools()
 
-        # Create agent if not created
+        # create agent if not created
         if self._agent is None:
             self._agent = create_react_agent(self._get_llm(), self._langchain_tools)
 
@@ -305,10 +282,10 @@ class AgenticAI:
             print(f"PROMPT: {prompt}")
             print(f"{'=' * 50}\n")
 
-        # Run agent
+        # run
         result = await self._agent.ainvoke({"messages": [HumanMessage(content=prompt)]})
 
-        # Process and return response
+        # process and return response
         messages = result.get("messages", [])
         final_response = "No response"
         step = 0
@@ -346,15 +323,15 @@ class AgenticAI:
         Returns:
             Agent's response
         """
-        # Start server if not running (skip in client-only mode)
+        # start server if not running (skip in client-only mode)
         if not self._client_only and not self._server_running:
             self.run_mcp_server()
 
-        # Load tools if not loaded
+        # load tools if not loaded
         if not self._langchain_tools:
             await self._load_tools()
 
-        # Create planning workflow if not created
+        # create planning workflow if not created
         if self._planning_workflow is None:
             self._planning_workflow = self._create_planning_workflow()
 
@@ -364,7 +341,7 @@ class AgenticAI:
             print(f"TASK: {prompt}")
             print(f"{'=' * 50}\n")
 
-        # Run planning workflow
+        # run
         initial_state: PlanningState = {
             "task": prompt,
             "plan": [],
@@ -388,7 +365,7 @@ class AgenticAI:
         tools = self._langchain_tools
         verbose = self.verbose
 
-        # Planner node: breaks down the task
+        # planner
         async def planner(state: PlanningState) -> dict[str, Any]:
             task = state["task"]
 
@@ -407,7 +384,7 @@ Respond with ONLY a numbered list of steps, nothing else. Example:
             response = await llm.ainvoke([HumanMessage(content=plan_prompt)])
             plan_text = str(response.content)
 
-            # Parse steps
+            # parse 
             steps = []
             for line in plan_text.strip().split("\n"):
                 line = line.strip()
@@ -425,7 +402,7 @@ Respond with ONLY a numbered list of steps, nothing else. Example:
 
             return {"plan": steps, "current_step": 0}
 
-        # Executor node: executes one step at a time
+        # executor 
         async def executor(state: PlanningState) -> dict[str, Any]:
             plan = state["plan"]
             current_step = state["current_step"]
@@ -439,11 +416,11 @@ Respond with ONLY a numbered list of steps, nothing else. Example:
                 print(f"EXECUTING STEP {current_step + 1}/{len(plan)}: {step}")
                 print("-" * 40)
 
-            # Create a mini ReAct agent for this step
+            # mini agent
             step_agent = create_react_agent(llm, tools)
             result = await step_agent.ainvoke({"messages": [HumanMessage(content=step)]})
 
-            # Extract result and show all messages if verbose
+            # extract result 
             messages = result.get("messages", [])
             step_result = "No result"
             tool_call_count = 0
@@ -471,13 +448,13 @@ Respond with ONLY a numbered list of steps, nothing else. Example:
                 "current_step": current_step + 1,
             }
 
-        # Check if more steps to execute
+        # conditional check
         def should_continue(state: PlanningState) -> str:
             if state["current_step"] < len(state["plan"]):
                 return "executor"
             return "synthesizer"
 
-        # Synthesizer node: combines all results
+        # synthesizer
         async def synthesizer(state: PlanningState) -> dict[str, Any]:
             task = state["task"]
             step_results = state["step_results"]
@@ -513,15 +490,11 @@ Provide a clear, concise final response that addresses the original task."""
 
             return {"final_result": str(response.content)}
 
-        # Build the graph
+        # workflow setup
         workflow = StateGraph(PlanningState)
-
-        # Add nodes
         workflow.add_node("planner", planner)
         workflow.add_node("executor", executor)
         workflow.add_node("synthesizer", synthesizer)
-
-        # Add edges
         workflow.set_entry_point("planner")
         workflow.add_edge("planner", "executor")
         workflow.add_conditional_edges("executor", should_continue)
