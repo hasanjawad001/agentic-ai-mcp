@@ -3,6 +3,9 @@
 import asyncio
 import multiprocessing
 import operator
+import os
+import signal
+import subprocess
 import time
 from collections.abc import Callable
 from typing import Annotated, Any, TypedDict
@@ -82,7 +85,6 @@ class AgenticAI:
 
         # MCP server config
         self._name = name
-        self._tools: list[str] = []
         self._registered_funcs: list[Callable[..., Any]] = []  # store funcs for subprocess
         self._server_process: multiprocessing.Process | None = None
         self._server_running = False
@@ -96,7 +98,9 @@ class AgenticAI:
     @property
     def tools(self) -> list[str]:
         """List of registered tool names."""
-        return self._tools.copy()
+        rf = self._registered_funcs.copy()
+        tools = [f.__name__ for f in rf]
+        return tools
 
     def register_tool(self, func: Callable[..., Any]) -> None:
         """Register a function as an MCP tool.
@@ -109,7 +113,6 @@ class AgenticAI:
         """
         if self._client_only:
             raise RuntimeError("Cannot register tools in client-only mode. Use server mode instead.")
-        self._tools.append(func.__name__)
         self._registered_funcs.append(func)
 
     def run_mcp_server(self) -> None:
@@ -124,7 +127,7 @@ class AgenticAI:
         if self._server_running:
             return
 
-        # start server in a separate process
+        # start server
         self._server_process = multiprocessing.Process(
             target=_run_server_process,
             args=(self._name, self.host, self.port, self._registered_funcs),
@@ -141,29 +144,51 @@ class AgenticAI:
             print(f"Tools: {self.tools}")
 
     def stop_mcp_server(self) -> None:
-        """Stop the MCP server.
-
-        Raises:
-            RuntimeError: If server is not running
-        """
-        if not self._server_running or self._server_process is None:
+        """Stop the MCP server."""
+        if not self._server_running and not self._get_pids_on_port():
             if self.verbose:
                 print("Server is not running.")
             return
 
-        self._server_process.terminate()
-        self._server_process.join(timeout=5)
+        self._kill_process_on_port()
 
-        # validation
-        if self._server_process.is_alive():
-            self._server_process.kill()
-            self._server_process.join(timeout=2)
+        # clean up process reference
+        if self._server_process is not None:
+            try:
+                self._server_process.join(timeout=1)
+            except Exception:
+                pass
+            self._server_process = None
 
-        self._server_process = None
         self._server_running = False
 
         if self.verbose:
             print("MCP Server stopped.")
+
+    def _get_pids_on_port(self) -> list[int]:
+        """Get PIDs of processes using the server port."""
+        try:
+            result = subprocess.run(
+                ["lsof", "-ti", f":{self.port}"],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return [int(pid) for pid in result.stdout.strip().split("\n")]
+        except (subprocess.SubprocessError, ValueError, FileNotFoundError):
+            pass
+        return []
+
+    def _kill_process_on_port(self) -> None:
+        """Kill any process using the server port."""
+        pids = self._get_pids_on_port()
+        for pid in pids:
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except (ProcessLookupError, OSError):
+                pass
+
+        time.sleep(0.5)
 
     def _wait_for_server(self, timeout: float = 10.0) -> None:
         """Wait for server to be ready."""
@@ -208,8 +233,10 @@ class AgenticAI:
         args_model = self._create_args_model(schema)
 
         async def acall_tool(**kwargs: Any) -> Any:
+            # filter out None values so MCP tool can use its defaults
+            filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
             async with Client(mcp_url) as client:
-                return await client.call_tool(mcp_tool.name, kwargs)
+                return await client.call_tool(mcp_tool.name, filtered_kwargs)
 
         def call_tool(**kwargs: Any) -> Any:
             return asyncio.run(acall_tool(**kwargs))
@@ -242,7 +269,11 @@ class AgenticAI:
             prop_type = type_map.get(prop.get("type", "string"), str)
             if name in required:
                 fields[name] = (prop_type, ...)
+            elif "default" in prop:
+                # use actual default value from schema
+                fields[name] = (prop_type, prop["default"])
             else:
+                # optional with no default - allow None
                 fields[name] = (prop_type | None, None)
 
         return create_model("ToolArgs", **fields)
@@ -285,7 +316,7 @@ class AgenticAI:
         # run
         result = await self._agent.ainvoke({"messages": [HumanMessage(content=prompt)]})
 
-        # process and return response
+        # process
         messages = result.get("messages", [])
         final_response = "No response"
         step = 0
@@ -359,27 +390,55 @@ class AgenticAI:
 
         return str(result["final_result"])
 
+    def _format_tool_signature(self, tool: StructuredTool) -> str:
+        """Format tool with its argument signature."""
+        if tool.args_schema:
+            schema = tool.args_schema.model_json_schema()
+            props = schema.get("properties", {})
+            required = set(schema.get("required", []))
+            args = []
+            for name, prop in props.items():
+                arg_type = prop.get("type", "any")
+                if name in required:
+                    args.append(f"{name}: {arg_type}")
+                else:
+                    default = prop.get("default", "None")
+                    args.append(f"{name}: {arg_type} = {default}")
+            args_str = ", ".join(args)
+            return f"{tool.name}({args_str}): {tool.description}"
+        return f"{tool.name}(): {tool.description}"
+
     def _create_planning_workflow(self) -> Any:
         """Create the planning workflow using LangGraph."""
         llm = self._get_llm()
         tools = self._langchain_tools
         verbose = self.verbose
 
+        # format tools with signatures
+        tool_signatures = [self._format_tool_signature(t) for t in tools]
+
         # planner
         async def planner(state: PlanningState) -> dict[str, Any]:
             task = state["task"]
 
             plan_prompt = f"""Break down this task into clear, executable steps.
-Each step should be a single action that can be done with the available tools.
+Each step should use the available tools efficiently.
 
-Available tools: {[t.name + ": " + t.description for t in tools]}
+Available tools:
+{chr(10).join(f"  - {sig}" for sig in tool_signatures)}
 
 Task: {task}
 
-Respond with ONLY a numbered list of steps, nothing else. Example:
-1. First step
-2. Second step
-3. Third step"""
+Respond with ONLY a numbered list of steps. Reference previous step results when needed.
+
+Example for task "calculate 2+3, then greet Bob that many times":
+1. Use add(a=2, b=3) to calculate the sum
+2. Use greet(name="Bob", times=result from step 1) to greet Bob
+
+Example for task "multiply 4 and 5, then add 10":
+1. Use multiply(a=4, b=5) to get the product
+2. Use add(a=result from step 1, b=10) to add 10"""
+
 
             response = await llm.ainvoke([HumanMessage(content=plan_prompt)])
             plan_text = str(response.content)
@@ -402,10 +461,11 @@ Respond with ONLY a numbered list of steps, nothing else. Example:
 
             return {"plan": steps, "current_step": 0}
 
-        # executor 
+        # executor
         async def executor(state: PlanningState) -> dict[str, Any]:
             plan = state["plan"]
             current_step = state["current_step"]
+            step_results = state.get("step_results", [])
 
             if current_step >= len(plan):
                 return {"current_step": current_step}
@@ -416,9 +476,16 @@ Respond with ONLY a numbered list of steps, nothing else. Example:
                 print(f"EXECUTING STEP {current_step + 1}/{len(plan)}: {step}")
                 print("-" * 40)
 
+            # build context with previous results
+            if step_results:
+                context = "Previous results:\n" + "\n".join(step_results) + "\n\n"
+                step_prompt = f"{context}Current task: {step}"
+            else:
+                step_prompt = step
+
             # mini agent
             step_agent = create_react_agent(llm, tools)
-            result = await step_agent.ainvoke({"messages": [HumanMessage(content=step)]})
+            result = await step_agent.ainvoke({"messages": [HumanMessage(content=step_prompt)]})
 
             # extract result 
             messages = result.get("messages", [])
