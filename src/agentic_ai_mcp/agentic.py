@@ -443,7 +443,7 @@ Example for task "multiply 4 and 5, then add 10":
             response = await llm.ainvoke([HumanMessage(content=plan_prompt)])
             plan_text = str(response.content)
 
-            # parse 
+            # parse
             steps = []
             for line in plan_text.strip().split("\n"):
                 line = line.strip()
@@ -487,7 +487,7 @@ Example for task "multiply 4 and 5, then add 10":
             step_agent = create_react_agent(llm, tools)
             result = await step_agent.ainvoke({"messages": [HumanMessage(content=step_prompt)]})
 
-            # extract result 
+            # extract result
             messages = result.get("messages", [])
             step_result = "No result"
             tool_call_count = 0
