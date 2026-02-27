@@ -8,8 +8,6 @@ Lightweight agentic AI with MCP tools. Supports multiple LLM providers (Anthropi
 pip install agentic-ai-mcp
 ```
 
-Both Anthropic and OpenAI providers are included. Choose which to use at runtime.
-
 ## Setup
 
 Set your API key in `.env` file (only needed on the client/agent machine):
@@ -45,8 +43,8 @@ def greet(name: str, times: int = 1) -> str:
     """Greet someone."""
     return ("Hello, " + name + "! ") * times
 
-# Create and register tools
-ai = AgenticAI(host="0.0.0.0", port=8888)
+# Create agentic instance and register tools
+ai = AgenticAI()
 ai.register_tool(add)
 ai.register_tool(greet)
 
@@ -65,14 +63,14 @@ Run this on another machine to connect to the server and execute agents:
 from agentic_ai_mcp import AgenticAI
 
 # Connect to remote MCP server 
-ai = AgenticAI(mcp_url="http://<server-ip>:8888/mcp") ## (default provider: Anthropic)
+ai = AgenticAI(mcp_url="http://<server-ip>:8888/mcp") ## default provider: Anthropic, use provider = 'openai' to use OpenAI 
 
 # Simple agent workflow
-result = await ai.run("Calculate 2+3 and greet 'Tom' the result times")
+result = await ai.run("Calculate 2+1, then use the result as the number of times to greet 'Alice'.")
 print(result)
 
 # Planning-based workflow for complex tasks
-result = await ai.run_with_planning("First calculate ((1+2)+(1+1)+3), then greet 'Alice' that many times")
+result = await ai.run_with_planning("Calculate ((0+2) + (1+1) + 1), then use the result as the number of times to greet 'Bob'.")
 print(result)
 ```
 
@@ -85,35 +83,11 @@ from agentic_ai_mcp import AgenticAI
 ai = AgenticAI(
     mcp_url="http://<server-ip>:8888/mcp",
     provider="openai",
-    model="gpt-4o-mini"
+    model="gpt-4o-mini" ## or 'gpt-4o'/'gpt-4-turbo' etc.
 )
 
-result = await ai.run("Calculate 2+3")
+result = await ai.run("Calculate -1+2")
 ```
-
-### Custom Settings
-
-```python
-from agentic_ai_mcp import AgenticAI, Settings
-
-# Configure retry behavior, timeouts, etc.
-settings = Settings(
-    max_retries=10,
-    retry_base_delay=2.0,
-)
-
-ai = AgenticAI(
-    mcp_url="http://<server-ip>:8888/mcp",
-    settings=settings
-)
-```
-
-## Providers
-
-| Provider | Model Examples |
-|----------|---------------|
-| Anthropic (default) | `claude-sonnet-4-20250514`, `claude-haiku-4-5-20251001` |
-| OpenAI | `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo` |
 
 ## Methods
 
@@ -124,27 +98,6 @@ ai = AgenticAI(
 | `ai.stop_mcp_server()` | Stop the MCP server |
 | `ai.run(prompt)` | Simple agent workflow |
 | `ai.run_with_planning(prompt)` | Complex agent workflow |
-
-## Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `provider` | LLM provider (`"anthropic"` or `"openai"`) | `"anthropic"` |
-| `model` | Model name | `"claude-haiku-4-5-20251001"` |
-| `mcp_url` | URL of existing MCP server (client-only mode) | `None` |
-| `host` | Host for MCP server | `"127.0.0.1"` |
-| `port` | Port for MCP server | `8888` |
-| `settings` | Custom Settings instance | `None` |
-| `verbose` | Enable verbose output | `False` |
-
-## Environment Variables
-
-| Variable | Description |
-|----------|-------------|
-| `ANTHROPIC_API_KEY` | Anthropic API key |
-| `OPENAI_API_KEY` | OpenAI API key |
-| `DEFAULT_MODEL` | Default model name |
-| `DEFAULT_PROVIDER` | Default provider (`anthropic` or `openai`) |
 
 ## License
 
