@@ -96,7 +96,9 @@ Example for task "multiply 4 and 5, then add 10":
             async def invoke_planner() -> Any:
                 return await llm.ainvoke([HumanMessage(content=plan_prompt)])
 
-            response = await retry_with_backoff(invoke_planner, max_retries=max_retries, verbose=verbose)
+            response = await retry_with_backoff(
+                invoke_planner, max_retries=max_retries, verbose=verbose
+            )
             plan_text = str(response.content)
 
             # Parse steps
@@ -218,7 +220,9 @@ Provide a clear, concise final response that addresses the original task."""
             async def invoke_synthesizer() -> Any:
                 return await llm.ainvoke([HumanMessage(content=synth_prompt)])
 
-            response = await retry_with_backoff(invoke_synthesizer, max_retries=max_retries, verbose=verbose)
+            response = await retry_with_backoff(
+                invoke_synthesizer, max_retries=max_retries, verbose=verbose
+            )
 
             if verbose:
                 print("Synthesis complete.")
