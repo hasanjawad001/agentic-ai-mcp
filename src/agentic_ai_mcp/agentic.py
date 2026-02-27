@@ -7,12 +7,14 @@ import inspect
 import multiprocessing
 import operator
 import os
+import random
 import signal
 import subprocess
 import time
 from collections.abc import Callable
 from typing import Annotated, Any, TypedDict
 
+import anthropic
 from fastmcp import Client, FastMCP
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
@@ -22,6 +24,66 @@ from langgraph.prebuilt import create_react_agent
 from pydantic import create_model
 
 from .config import get_anthropic_api_key, get_default_model
+
+
+async def retry_with_backoff(
+    coro_func: Callable[..., Any],
+    *args: Any,
+    max_retries: int = 5,
+    base_delay: float = 1.0,
+    max_delay: float = 60.0,
+    verbose: bool = False,
+    **kwargs: Any,
+) -> Any:
+    """Retry an async function with exponential backoff on API overload errors.
+
+    Args:
+        coro_func: Async function to retry
+        max_retries: Maximum number of retry attempts
+        base_delay: Initial delay in seconds
+        max_delay: Maximum delay between retries
+        verbose: Print retry information
+        *args, **kwargs: Arguments to pass to coro_func
+
+    Returns:
+        Result from the successful call
+
+    Raises:
+        The last exception if all retries fail
+    """
+    last_exception = None
+
+    for attempt in range(max_retries + 1):
+        try:
+            return await coro_func(*args, **kwargs)
+        except anthropic.InternalServerError as e:
+            last_exception = e
+            if "overloaded" in str(e).lower() or "529" in str(e):
+                if attempt < max_retries:
+                    # Exponential backoff with jitter
+                    delay = min(base_delay * (2 ** attempt) + random.uniform(0, 1), max_delay)
+                    if verbose:
+                        print(f"  [RETRY] API overloaded. Waiting {delay:.1f}s before retry {attempt + 1}/{max_retries}...")
+                    await asyncio.sleep(delay)
+                else:
+                    raise
+            else:
+                raise
+        except Exception as e:
+            # Check if it's an overload error wrapped in another exception
+            if "overloaded" in str(e).lower() or "529" in str(e):
+                last_exception = e
+                if attempt < max_retries:
+                    delay = min(base_delay * (2 ** attempt) + random.uniform(0, 1), max_delay)
+                    if verbose:
+                        print(f"  [RETRY] API overloaded. Waiting {delay:.1f}s before retry {attempt + 1}/{max_retries}...")
+                    await asyncio.sleep(delay)
+                else:
+                    raise
+            else:
+                raise
+
+    raise last_exception  # type: ignore[misc]
 
 
 def _run_server_process(name: str, host: str, port: int, funcs: list[Callable[..., Any]]) -> None:
@@ -121,7 +183,9 @@ class AgenticAI:
             result = func(*args, **kwargs)
             return {"result": result}
 
-        return async_wrapper if inspect.iscoroutinefunction(func) else sync_wrapper
+        wrapper = async_wrapper if inspect.iscoroutinefunction(func) else sync_wrapper
+        wrapper.__annotations__['return'] = dict  # ← explicitly override annotation
+        return wrapper
 
     def register_tool(self, func: Callable[..., Any]) -> None:
         """Register a function as an MCP tool.
@@ -256,7 +320,8 @@ class AgenticAI:
             # filter out None values so MCP tool can use its defaults
             filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
             async with Client(mcp_url) as client:
-                return await client.call_tool(mcp_tool.name, filtered_kwargs)
+                # for output validation remove raise_on_error=False 
+                return await client.call_tool(mcp_tool.name, filtered_kwargs, raise_on_error=False)
 
         def call_tool(**kwargs: Any) -> Any:
             return asyncio.run(acall_tool(**kwargs))
@@ -459,7 +524,10 @@ Example for task "multiply 4 and 5, then add 10":
 1. Use multiply(a=4, b=5) to get the product
 2. Use add(a=result from step 1, b=10) to add 10"""
 
-            response = await llm.ainvoke([HumanMessage(content=plan_prompt)])
+            async def invoke_planner() -> Any:
+                return await llm.ainvoke([HumanMessage(content=plan_prompt)])
+
+            response = await retry_with_backoff(invoke_planner, max_retries=5, verbose=verbose)
             plan_text = str(response.content)
 
             # parse
@@ -489,6 +557,10 @@ Example for task "multiply 4 and 5, then add 10":
             if current_step >= len(plan):
                 return {"current_step": current_step}
 
+            # Add delay between steps to avoid rate limiting (skip for first step)
+            if current_step > 0:
+                await asyncio.sleep(1.0)  # 1 second delay between steps
+
             step = plan[current_step]
 
             if verbose:
@@ -502,9 +574,13 @@ Example for task "multiply 4 and 5, then add 10":
             else:
                 step_prompt = step
 
-            # mini agent
+            # mini agent with retry logic for API overload
             step_agent = create_react_agent(llm, tools)
-            result = await step_agent.ainvoke({"messages": [HumanMessage(content=step_prompt)]})
+
+            async def invoke_step() -> Any:
+                return await step_agent.ainvoke({"messages": [HumanMessage(content=step_prompt)]})
+
+            result = await retry_with_backoff(invoke_step, max_retries=5, verbose=verbose)
 
             # extract result
             messages = result.get("messages", [])
@@ -568,7 +644,10 @@ Provide a clear, concise final response that addresses the original task."""
             if verbose:
                 print("Sending synthesis prompt...")
 
-            response = await llm.ainvoke([HumanMessage(content=synth_prompt)])
+            async def invoke_synthesizer() -> Any:
+                return await llm.ainvoke([HumanMessage(content=synth_prompt)])
+
+            response = await retry_with_backoff(invoke_synthesizer, max_retries=5, verbose=verbose)
 
             if verbose:
                 print("Synthesis complete.")
