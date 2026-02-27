@@ -1,0 +1,201 @@
+"""Tool registration and conversion for MCP tools."""
+
+import asyncio
+import functools
+import inspect
+from collections.abc import Callable
+from typing import Any
+
+from fastmcp import Client
+from langchain_core.tools import StructuredTool
+from pydantic import create_model
+
+
+class ToolRegistry:
+    """Registry for managing MCP tools.
+
+    Handles registration of Python functions as MCP tools and
+    conversion to LangChain tools for agent execution.
+    """
+
+    def __init__(self, verbose: bool = False) -> None:
+        """Initialize the tool registry.
+
+        Args:
+            verbose: Enable verbose output
+        """
+        self.verbose = verbose
+        self._registered_funcs: list[Callable[..., Any]] = []
+        self._langchain_tools: list[StructuredTool] = []
+
+    @property
+    def tool_names(self) -> list[str]:
+        """Get list of registered tool names."""
+        return [f.__name__ for f in self._registered_funcs]
+
+    @property
+    def registered_funcs(self) -> list[Callable[..., Any]]:
+        """Get list of registered functions."""
+        return self._registered_funcs.copy()
+
+    @property
+    def langchain_tools(self) -> list[StructuredTool]:
+        """Get list of LangChain tools."""
+        return self._langchain_tools.copy()
+
+    def _wrap_tool_result(self, func: Callable[..., Any]) -> Callable[..., dict[str, Any]]:
+        """Wrap function to return {"result": <original_return>}.
+
+        This ensures all tool returns are dicts, which is required for
+        MCP structured_content to work correctly with non-dict types
+        like lists, arrays, and scalars.
+
+        Args:
+            func: Function to wrap
+
+        Returns:
+            Wrapped function that returns dict
+        """
+
+        @functools.wraps(func)
+        async def async_wrapper(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            result = await func(*args, **kwargs)
+            return {"result": result}
+
+        @functools.wraps(func)
+        def sync_wrapper(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            result = func(*args, **kwargs)
+            return {"result": result}
+
+        if inspect.iscoroutinefunction(func):
+            async_wrapper.__annotations__["return"] = dict
+            return async_wrapper  # type: ignore[return-value]
+        else:
+            sync_wrapper.__annotations__["return"] = dict
+            return sync_wrapper
+
+    def register(self, func: Callable[..., Any]) -> None:
+        """Register a function as an MCP tool.
+
+        Args:
+            func: Function with type hints and docstring
+        """
+        wrapped_func = self._wrap_tool_result(func)
+        self._registered_funcs.append(wrapped_func)
+
+    async def load_from_mcp(self, mcp_url: str) -> list[StructuredTool]:
+        """Load tools from an MCP server as LangChain tools.
+
+        Args:
+            mcp_url: URL of the MCP server
+
+        Returns:
+            List of LangChain StructuredTool instances
+        """
+        if self.verbose:
+            print(f"Loading tools from: {mcp_url}")
+
+        async with Client(mcp_url) as client:
+            mcp_tools = await client.list_tools()
+
+        self._langchain_tools = []
+        for tool in mcp_tools:
+            lc_tool = self._convert_to_langchain(tool, mcp_url)
+            self._langchain_tools.append(lc_tool)
+
+        if self.verbose:
+            print(f"Loaded tools: {[t.name for t in self._langchain_tools]}")
+
+        return self._langchain_tools
+
+    def _convert_to_langchain(self, mcp_tool: Any, mcp_url: str) -> StructuredTool:
+        """Convert MCP tool to LangChain StructuredTool.
+
+        Args:
+            mcp_tool: MCP tool definition
+            mcp_url: URL of the MCP server
+
+        Returns:
+            LangChain StructuredTool instance
+        """
+        schema = mcp_tool.inputSchema if hasattr(mcp_tool, "inputSchema") else {}
+        args_model = self._create_args_model(schema)
+
+        async def acall_tool(**kwargs: Any) -> Any:
+            # Filter out None values so MCP tool can use its defaults
+            filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+            async with Client(mcp_url) as client:
+                # raise_on_error=False to skip output validation
+                return await client.call_tool(mcp_tool.name, filtered_kwargs, raise_on_error=False)
+
+        def call_tool(**kwargs: Any) -> Any:
+            return asyncio.run(acall_tool(**kwargs))
+
+        return StructuredTool(
+            name=mcp_tool.name,
+            description=mcp_tool.description or mcp_tool.name,
+            func=call_tool,
+            coroutine=acall_tool,
+            args_schema=args_model,
+        )
+
+    def _create_args_model(self, schema: dict[str, Any]) -> Any:
+        """Create Pydantic model from JSON schema.
+
+        Args:
+            schema: JSON schema for tool arguments
+
+        Returns:
+            Pydantic model class or None if no properties
+        """
+        if not schema or "properties" not in schema:
+            return None
+
+        properties = schema.get("properties", {})
+        required = set(schema.get("required", []))
+
+        type_map = {
+            "string": str,
+            "integer": int,
+            "number": float,
+            "boolean": bool,
+        }
+
+        fields: dict[str, Any] = {}
+        for name, prop in properties.items():
+            prop_type = type_map.get(prop.get("type", "string"), str)
+            if name in required:
+                fields[name] = (prop_type, ...)
+            elif "default" in prop:
+                # Use actual default value from schema
+                fields[name] = (prop_type, prop["default"])
+            else:
+                # Optional with no default - allow None
+                fields[name] = (prop_type | None, None)
+
+        return create_model("ToolArgs", **fields)
+
+    def format_tool_signature(self, tool: StructuredTool) -> str:
+        """Format tool with its argument signature.
+
+        Args:
+            tool: LangChain StructuredTool
+
+        Returns:
+            Formatted signature string
+        """
+        if tool.args_schema and hasattr(tool.args_schema, "model_json_schema"):
+            schema = tool.args_schema.model_json_schema()
+            props = schema.get("properties", {})
+            required = set(schema.get("required", []))
+            args = []
+            for name, prop in props.items():
+                arg_type = prop.get("type", "any")
+                if name in required:
+                    args.append(f"{name}: {arg_type}")
+                else:
+                    default = prop.get("default", "None")
+                    args.append(f"{name}: {arg_type} = {default}")
+            args_str = ", ".join(args)
+            return f"{tool.name}({args_str}): {tool.description}"
+        return f"{tool.name}(): {tool.description}"
