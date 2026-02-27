@@ -64,15 +64,15 @@ Run this on another machine to connect to the server and execute agents:
 ```python
 from agentic_ai_mcp import AgenticAI
 
-# Connect to remote MCP server (default: Anthropic)
-ai = AgenticAI(mcp_url="http://<server-ip>:8888/mcp")
+# Connect to remote MCP server 
+ai = AgenticAI(mcp_url="http://<server-ip>:8888/mcp") ## (default provider: Anthropic)
 
 # Simple agent workflow
-result = await ai.run("Calculate 2+3 and greet Tom the result times")
+result = await ai.run("Calculate 2+3 and greet 'Tom' the result times")
 print(result)
 
 # Planning-based workflow for complex tasks
-result = await ai.run_with_planning("First calculate ((1+2)+(1+1)+3), then greet Alice that many times")
+result = await ai.run_with_planning("First calculate ((1+2)+(1+1)+3), then greet 'Alice' that many times")
 print(result)
 ```
 
