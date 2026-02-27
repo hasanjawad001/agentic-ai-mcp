@@ -61,9 +61,11 @@ async def retry_with_backoff(
             if "overloaded" in str(e).lower() or "529" in str(e):
                 if attempt < max_retries:
                     # Exponential backoff with jitter
-                    delay = min(base_delay * (2 ** attempt) + random.uniform(0, 1), max_delay)
+                    delay = min(base_delay * (2**attempt) + random.uniform(0, 1), max_delay)
                     if verbose:
-                        print(f"  [RETRY] API overloaded. Waiting {delay:.1f}s before retry {attempt + 1}/{max_retries}...")
+                        print(
+                            f"  [RETRY] API overloaded. Waiting {delay:.1f}s before retry {attempt + 1}/{max_retries}..."
+                        )
                     await asyncio.sleep(delay)
                 else:
                     raise
@@ -74,9 +76,11 @@ async def retry_with_backoff(
             if "overloaded" in str(e).lower() or "529" in str(e):
                 last_exception = e
                 if attempt < max_retries:
-                    delay = min(base_delay * (2 ** attempt) + random.uniform(0, 1), max_delay)
+                    delay = min(base_delay * (2**attempt) + random.uniform(0, 1), max_delay)
                     if verbose:
-                        print(f"  [RETRY] API overloaded. Waiting {delay:.1f}s before retry {attempt + 1}/{max_retries}...")
+                        print(
+                            f"  [RETRY] API overloaded. Waiting {delay:.1f}s before retry {attempt + 1}/{max_retries}..."
+                        )
                     await asyncio.sleep(delay)
                 else:
                     raise
@@ -184,7 +188,7 @@ class AgenticAI:
             return {"result": result}
 
         wrapper = async_wrapper if inspect.iscoroutinefunction(func) else sync_wrapper
-        wrapper.__annotations__['return'] = dict  # ← explicitly override annotation
+        wrapper.__annotations__["return"] = dict
         return wrapper
 
     def register_tool(self, func: Callable[..., Any]) -> None:
@@ -321,9 +325,7 @@ class AgenticAI:
             filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
             async with Client(mcp_url) as client:
                 # raise_on_error=False to skip output validation
-                return await client.call_tool(
-                    mcp_tool.name, filtered_kwargs, raise_on_error=False
-                )
+                return await client.call_tool(mcp_tool.name, filtered_kwargs, raise_on_error=False)
 
         def call_tool(**kwargs: Any) -> Any:
             return asyncio.run(acall_tool(**kwargs))

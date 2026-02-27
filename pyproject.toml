@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentic-ai-mcp"
-version = "0.5.2"
+version = "0.5.3"
 description = "A lightweight agentic AI framework with MCP tool serving"
 readme = "README.md"
 license = "MIT"
@@ -98,6 +98,13 @@ select = [
 ignore = [
     "E501",   # line too long (handled by formatter)
     "B008",   # do not perform function calls in argument defaults
+]
+
+[tool.ruff.lint.per-file-ignores]
+"examples/*" = [
+    "ARG001",  # unused arguments (stub/demo functions)
+    "E402",    # module import not at top of file
+    "E722",    # bare except
 ]
 
 [tool.ruff.lint.isort]

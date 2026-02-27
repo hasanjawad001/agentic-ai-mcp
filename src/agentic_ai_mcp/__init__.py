@@ -2,5 +2,5 @@
 
 from agentic_ai_mcp.agentic import AgenticAI
 
-__version__ = "0.5.2"
+__version__ = "0.5.3"
 __all__ = ["AgenticAI", "__version__"]
