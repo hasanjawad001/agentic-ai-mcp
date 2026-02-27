@@ -1,6 +1,8 @@
 """OpenAI LLM provider implementation."""
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
+
+from langchain_openai import ChatOpenAI
 
 from agentic_ai_mcp.providers.base import LLMProvider, ProviderType
 
@@ -9,11 +11,7 @@ if TYPE_CHECKING:
 
 
 class OpenAIProvider(LLMProvider):
-    """OpenAI GPT provider using LangChain.
-
-    Requires the 'openai' optional dependency:
-        pip install agentic-ai-mcp[openai]
-    """
+    """OpenAI GPT provider using LangChain."""
 
     @property
     def provider_type(self) -> ProviderType:
@@ -31,26 +29,16 @@ class OpenAIProvider(LLMProvider):
         """
         return self.settings.get_api_key("openai")
 
-    def get_chat_model(self) -> Any:
+    def get_chat_model(self) -> ChatOpenAI:
         """Get the ChatOpenAI instance.
 
         Returns:
             Configured ChatOpenAI model
-
-        Raises:
-            ImportError: If langchain-openai is not installed
         """
         if self._chat_model is None:
-            try:
-                from langchain_openai import ChatOpenAI
-            except ImportError as e:
-                raise ImportError(
-                    "OpenAI provider requires langchain-openai. "
-                    "Install with: pip install agentic-ai-mcp[openai]"
-                ) from e
-
             self._chat_model = ChatOpenAI(
                 model=self.model,
                 api_key=self.get_api_key(),  # type: ignore[arg-type]
             )
-        return self._chat_model
+        result: ChatOpenAI = self._chat_model
+        return result

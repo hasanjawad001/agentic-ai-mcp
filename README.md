@@ -5,15 +5,10 @@ Lightweight agentic AI with MCP tools. Supports multiple LLM providers (Anthropi
 ## Install
 
 ```bash
-# Basic install (Anthropic only)
 pip install agentic-ai-mcp
-
-# With OpenAI support
-pip install agentic-ai-mcp[openai]
-
-# All providers
-pip install agentic-ai-mcp[all]
 ```
+
+Both Anthropic and OpenAI providers are included. Choose which to use at runtime.
 
 ## Setup
 
@@ -115,10 +110,10 @@ ai = AgenticAI(
 
 ## Providers
 
-| Provider | Model Examples | Install |
-|----------|---------------|---------|
-| Anthropic (default) | `claude-sonnet-4-20250514`, `claude-haiku-4-5-20251001` | `pip install agentic-ai-mcp` |
-| OpenAI | `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo` | `pip install agentic-ai-mcp[openai]` |
+| Provider | Model Examples |
+|----------|---------------|
+| Anthropic (default) | `claude-sonnet-4-20250514`, `claude-haiku-4-5-20251001` |
+| OpenAI | `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo` |
 
 ## Methods
 
