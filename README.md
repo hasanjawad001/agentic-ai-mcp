@@ -1,18 +1,30 @@
 # Agentic AI MCP
 
-Lightweight agentic AI with MCP tools. Supports distributed setups where tools run on one machine and agents on another.
+Lightweight agentic AI with MCP tools. Supports multiple LLM providers (Anthropic, OpenAI) and distributed setups where tools run on one machine and agents on another.
 
 ## Install
 
 ```bash
+# Basic install (Anthropic only)
 pip install agentic-ai-mcp
+
+# With OpenAI support
+pip install agentic-ai-mcp[openai]
+
+# All providers
+pip install agentic-ai-mcp[all]
 ```
 
 ## Setup
 
-Set your Anthropic API key in `.env` file (only needed on the client/agent machine):
+Set your API key in `.env` file (only needed on the client/agent machine):
+
 ```bash
-ANTHROPIC_API_KEY=sk-...
+# For Anthropic (default)
+ANTHROPIC_API_KEY=sk-ant-...
+
+# For OpenAI
+OPENAI_API_KEY=sk-...
 ```
 
 ## Quick Start
@@ -57,7 +69,7 @@ Run this on another machine to connect to the server and execute agents:
 ```python
 from agentic_ai_mcp import AgenticAI
 
-# Connect to remote MCP server
+# Connect to remote MCP server (default: Anthropic)
 ai = AgenticAI(mcp_url="http://<server-ip>:8888/mcp")
 
 # Simple agent workflow
@@ -69,6 +81,45 @@ result = await ai.run_with_planning("First calculate ((1+2)+(1+1)+3), then greet
 print(result)
 ```
 
+### Using OpenAI
+
+```python
+from agentic_ai_mcp import AgenticAI
+
+# Use OpenAI instead of Anthropic
+ai = AgenticAI(
+    mcp_url="http://<server-ip>:8888/mcp",
+    provider="openai",
+    model="gpt-4o-mini"
+)
+
+result = await ai.run("Calculate 2+3")
+```
+
+### Custom Settings
+
+```python
+from agentic_ai_mcp import AgenticAI, Settings
+
+# Configure retry behavior, timeouts, etc.
+settings = Settings(
+    max_retries=10,
+    retry_base_delay=2.0,
+)
+
+ai = AgenticAI(
+    mcp_url="http://<server-ip>:8888/mcp",
+    settings=settings
+)
+```
+
+## Providers
+
+| Provider | Model Examples | Install |
+|----------|---------------|---------|
+| Anthropic (default) | `claude-sonnet-4-20250514`, `claude-haiku-4-5-20251001` | `pip install agentic-ai-mcp` |
+| OpenAI | `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo` | `pip install agentic-ai-mcp[openai]` |
+
 ## Methods
 
 | Method | Description |
@@ -78,6 +129,27 @@ print(result)
 | `ai.stop_mcp_server()` | Stop the MCP server |
 | `ai.run(prompt)` | Simple agent workflow |
 | `ai.run_with_planning(prompt)` | Complex agent workflow |
+
+## Parameters
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `provider` | LLM provider (`"anthropic"` or `"openai"`) | `"anthropic"` |
+| `model` | Model name | `"claude-haiku-4-5-20251001"` |
+| `mcp_url` | URL of existing MCP server (client-only mode) | `None` |
+| `host` | Host for MCP server | `"127.0.0.1"` |
+| `port` | Port for MCP server | `8888` |
+| `settings` | Custom Settings instance | `None` |
+| `verbose` | Enable verbose output | `False` |
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `ANTHROPIC_API_KEY` | Anthropic API key |
+| `OPENAI_API_KEY` | OpenAI API key |
+| `DEFAULT_MODEL` | Default model name |
+| `DEFAULT_PROVIDER` | Default provider (`anthropic` or `openai`) |
 
 ## License
 
