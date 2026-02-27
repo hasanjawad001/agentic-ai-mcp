@@ -320,8 +320,10 @@ class AgenticAI:
             # filter out None values so MCP tool can use its defaults
             filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
             async with Client(mcp_url) as client:
-                # for output validation remove raise_on_error=False 
-                return await client.call_tool(mcp_tool.name, filtered_kwargs, raise_on_error=False)
+                # raise_on_error=False to skip output validation
+                return await client.call_tool(
+                    mcp_tool.name, filtered_kwargs, raise_on_error=False
+                )
 
         def call_tool(**kwargs: Any) -> Any:
             return asyncio.run(acall_tool(**kwargs))
