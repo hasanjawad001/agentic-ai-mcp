@@ -24,7 +24,7 @@ class AgenticAIServer:
         print(f"Tools: {server.tools}")
         print(f"URL: {server.mcp_url}")
 
-        # Blocking - runs until interrupted
+        # Runs until Ctrl+C
         server.run()
     """
 
@@ -114,9 +114,9 @@ class AgenticAIServer:
             print(f"Registered tool: {func.__name__}")
 
     def run(self) -> None:
-        """Start the MCP server (BLOCKING).
+        """Start the MCP server.
 
-        This method blocks until the server is stopped (e.g., via Ctrl+C).
+        Runs until interrupted (e.g., Ctrl+C or kernel restart).
         """
         if self.verbose:
             print(f"Starting MCP server at {self.mcp_url}")
