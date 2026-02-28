@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentic-ai-mcp"
-version = "0.5.4"
+version = "0.5.5"
 description = "A lightweight agentic AI framework with MCP tool serving"
 readme = "README.md"
 license = "MIT"
@@ -79,7 +79,7 @@ strict_optional = true
 show_error_codes = true
 
 [[tool.mypy.overrides]]
-module = ["mcp.*", "langchain.*", "langgraph.*", "fastmcp.*", "pydantic.*", "langchain_anthropic.*", "langchain_openai.*", "pydantic_settings.*"]
+module = ["mcp.*", "langchain.*", "langgraph.*", "fastmcp.*", "pydantic.*", "langchain_anthropic.*", "langchain_openai.*", "pydantic_settings.*", "cloudpickle.*", "cloudpickle"]
 ignore_missing_imports = true
 
 [tool.ruff]

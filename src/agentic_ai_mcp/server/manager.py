@@ -30,7 +30,7 @@ def _run_server_process(name: str, host: str, port: int, pickled_funcs: bytes) -
     mcp = FastMCP(name)
     for func in funcs:
         mcp.tool()(func)
-    asyncio.run(mcp.run_http_async(host=host, port=port))
+    asyncio.run(mcp.run_http_async(host=host, port=port, stateless_http=True))
 
 
 class MCPServerManager:
