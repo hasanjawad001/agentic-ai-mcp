@@ -60,3 +60,26 @@ class TestAgenticAIServer:
         server = AgenticAIServer()
 
         assert server.mcp_url == "http://127.0.0.1:8888/mcp"
+
+    def test_is_running_initially_false(self):
+        """Test is_running is False initially."""
+        server = AgenticAIServer()
+
+        assert server.is_running is False
+
+    def test_start_and_stop(self):
+        """Test starting and stopping the server."""
+        server = AgenticAIServer(port=8895)
+
+        def add(a: int, b: int) -> int:
+            """Add two numbers."""
+            return a + b
+
+        server.register_tool(add)
+        server.start()
+
+        assert server.is_running is True
+
+        server.stop()
+
+        assert server.is_running is False

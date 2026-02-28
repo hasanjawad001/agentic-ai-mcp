@@ -1,15 +1,41 @@
 """AgenticAIServer - Simple MCP server using FastMCP."""
 
+import asyncio
+import contextlib
 import functools
 import inspect
+import multiprocessing
+import os
+import signal
+import socket
+import subprocess
+import time
 from collections.abc import Callable
 from typing import Any
 
+import cloudpickle
 from fastmcp import FastMCP
 
 
+def _run_server_process(name: str, host: str, port: int, pickled_funcs: bytes) -> None:
+    """Run MCP server in a subprocess.
+
+    Args:
+        name: Server name
+        host: Host address
+        port: Port number
+        pickled_funcs: Cloudpickle-serialized list of functions to register as tools
+    """
+    funcs: list[Callable[..., Any]] = cloudpickle.loads(pickled_funcs)
+
+    mcp = FastMCP(name)
+    for func in funcs:
+        mcp.tool()(func)
+    asyncio.run(mcp.run_http_async(host=host, port=port, stateless_http=True))
+
+
 class AgenticAIServer:
-    """Simple MCP server using FastMCP directly.
+    """Simple MCP server using FastMCP.
 
     Example:
         from agentic_ai_mcp import AgenticAIServer
@@ -24,8 +50,13 @@ class AgenticAIServer:
         print(f"Tools: {server.tools}")
         print(f"URL: {server.mcp_url}")
 
-        # Runs until Ctrl+C
-        server.run()
+        # Start server in background
+        server.start()
+
+        # ... do other things ...
+
+        # Stop server when done
+        server.stop()
     """
 
     def __init__(
@@ -48,11 +79,13 @@ class AgenticAIServer:
         self.port = port
         self.verbose = verbose
 
-        # FastMCP instance
-        self._mcp = FastMCP(name)
-
-        # Track original function names (before wrapping)
+        # Track registered functions
+        self._registered_funcs: list[Callable[..., Any]] = []
         self._tool_names: list[str] = []
+
+        # Server process
+        self._server_process: multiprocessing.Process | None = None
+        self._running = False
 
     @property
     def tools(self) -> list[str]:
@@ -63,6 +96,11 @@ class AgenticAIServer:
     def mcp_url(self) -> str:
         """Get the MCP server URL."""
         return f"http://{self.host}:{self.port}/mcp"
+
+    @property
+    def is_running(self) -> bool:
+        """Check if the server is currently running."""
+        return self._running
 
     def _wrap_tool_result(self, func: Callable[..., Any]) -> Callable[..., dict[str, Any]]:
         """Wrap function to return {"result": <original_return>}.
@@ -104,23 +142,104 @@ class AgenticAIServer:
         # Store original function name
         self._tool_names.append(func.__name__)
 
-        # Wrap to ensure dict returns
+        # Wrap to ensure dict returns and store
         wrapped_func = self._wrap_tool_result(func)
-
-        # Register with FastMCP
-        self._mcp.tool()(wrapped_func)
+        self._registered_funcs.append(wrapped_func)
 
         if self.verbose:
             print(f"Registered tool: {func.__name__}")
 
-    def run(self) -> None:
-        """Start the MCP server.
+    def start(self) -> None:
+        """Start the MCP server in background.
 
-        Runs until interrupted (e.g., Ctrl+C or kernel restart).
+        The server runs in a separate process and can be stopped with stop().
         """
-        if self.verbose:
-            print(f"Starting MCP server at {self.mcp_url}")
-            print(f"Tools: {self.tools}")
+        if self._running:
+            if self.verbose:
+                print("Server is already running.")
+            return
 
-        # Run FastMCP with streamable-http transport (blocking)
-        self._mcp.run(transport="streamable-http", host=self.host, port=self.port)
+        # Serialize functions using cloudpickle (handles notebook-defined functions)
+        pickled_funcs = cloudpickle.dumps(self._registered_funcs)
+
+        # Start server process
+        self._server_process = multiprocessing.Process(
+            target=_run_server_process,
+            args=(self.name, self.host, self.port, pickled_funcs),
+            daemon=True,
+        )
+        self._server_process.start()
+
+        # Wait for server to be ready
+        self._wait_for_server()
+        self._running = True
+
+        if self.verbose:
+            print(f"MCP Server running at {self.mcp_url}")
+
+    def stop(self) -> None:
+        """Stop the MCP server."""
+        if not self._running and not self._get_pids_on_port():
+            if self.verbose:
+                print("Server is not running.")
+            return
+
+        self._kill_process_on_port()
+
+        # Clean up process reference
+        if self._server_process is not None:
+            with contextlib.suppress(Exception):
+                self._server_process.join(timeout=1)
+            self._server_process = None
+
+        self._running = False
+
+        if self.verbose:
+            print("MCP Server stopped.")
+
+    def _get_pids_on_port(self) -> list[int]:
+        """Get PIDs of processes using the server port."""
+        try:
+            result = subprocess.run(
+                ["lsof", "-ti", f":{self.port}"],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return [int(pid) for pid in result.stdout.strip().split("\n")]
+        except (subprocess.SubprocessError, ValueError, FileNotFoundError):
+            pass
+        return []
+
+    def _kill_process_on_port(self) -> None:
+        """Kill any process using the server port."""
+        pids = self._get_pids_on_port()
+        for pid in pids:
+            with contextlib.suppress(ProcessLookupError, OSError):
+                os.kill(pid, signal.SIGKILL)
+
+        time.sleep(0.5)
+
+    def _wait_for_server(self, timeout: float = 10.0) -> None:
+        """Wait for server to be ready.
+
+        Args:
+            timeout: Maximum time to wait in seconds
+
+        Raises:
+            TimeoutError: If server doesn't start within timeout
+        """
+        start = time.time()
+        while time.time() - start < timeout:
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(1)
+                if sock.connect_ex((self.host, self.port)) == 0:
+                    sock.close()
+                    time.sleep(0.5)
+                    return
+                sock.close()
+            except OSError:
+                pass
+            time.sleep(0.2)
+        raise TimeoutError(f"Server did not start within {timeout}s")

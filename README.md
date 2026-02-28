@@ -51,8 +51,13 @@ server.register_tool(greet)
 print(f"Tools: {server.tools}")
 print(f"URL: {server.mcp_url}")
 
-# Start server 
-server.run()
+# Start server in background
+server.start()
+
+# ... do other things ...
+
+# Stop when done
+server.stop()
 ```
 
 ### Client (run agents)
@@ -109,8 +114,10 @@ client = AgenticAIClient(
 |-----------------|-------------|
 | `server.tools` | List of registered tool names |
 | `server.mcp_url` | Server URL |
+| `server.is_running` | Check if server is running |
 | `server.register_tool(func)` | Register a function as an MCP tool |
-| `server.run()` | Start MCP server |
+| `server.start()` | Start MCP server in background |
+| `server.stop()` | Stop MCP server |
 
 ### AgenticAIClient
 
