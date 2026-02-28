@@ -11,18 +11,22 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+import cloudpickle
 from fastmcp import FastMCP
 
 
-def _run_server_process(name: str, host: str, port: int, funcs: list[Callable[..., Any]]) -> None:
+def _run_server_process(name: str, host: str, port: int, pickled_funcs: bytes) -> None:
     """Run MCP server in a subprocess.
 
     Args:
         name: Server name
         host: Host address
         port: Port number
-        funcs: List of functions to register as tools
+        pickled_funcs: Cloudpickle-serialized list of functions to register as tools
     """
+    # Deserialize functions using cloudpickle (handles notebook-defined functions)
+    funcs: list[Callable[..., Any]] = cloudpickle.loads(pickled_funcs)
+
     mcp = FastMCP(name)
     for func in funcs:
         mcp.tool()(func)
@@ -79,10 +83,13 @@ class MCPServerManager:
         if self._running:
             return
 
+        # Serialize functions using cloudpickle (handles notebook-defined functions on Windows)
+        pickled_funcs = cloudpickle.dumps(funcs)
+
         # Start server process
         self._server_process = multiprocessing.Process(
             target=_run_server_process,
-            args=(self.name, self.host, self.port, funcs),
+            args=(self.name, self.host, self.port, pickled_funcs),
             daemon=True,
         )
         self._server_process.start()

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentic-ai-mcp"
-version = "0.5.3"
+version = "0.5.4"
 description = "A lightweight agentic AI framework with MCP tool serving"
 readme = "README.md"
 license = "MIT"
@@ -34,6 +34,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
     "python-dotenv>=1.0.0",
+    "cloudpickle>=3.0.0",
 ]
 
 [project.optional-dependencies]
