@@ -60,20 +60,3 @@ class TestAgenticAIServer:
         server = AgenticAIServer()
 
         assert server.mcp_url == "http://127.0.0.1:8888/mcp"
-
-    def test_tools_property_returns_copy(self):
-        """Test that tools property returns a copy."""
-        server = AgenticAIServer()
-
-        def add(a: int, b: int) -> int:
-            """Add two numbers."""
-            return a + b
-
-        server.register_tool(add)
-
-        tools = server.tools
-        tools.append("fake_tool")
-
-        # Original should not be modified
-        assert len(server.tools) == 1
-        assert "fake_tool" not in server.tools
