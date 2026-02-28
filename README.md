@@ -51,7 +51,7 @@ server.register_tool(greet)
 print(f"Tools: {server.tools}")
 print(f"URL: {server.mcp_url}")
 
-# Start server (runs until Ctrl+C)
+# Start server 
 server.run()
 ```
 
@@ -110,17 +110,15 @@ client = AgenticAIClient(
 | `server.tools` | List of registered tool names |
 | `server.mcp_url` | Server URL |
 | `server.register_tool(func)` | Register a function as an MCP tool |
-| `server.run()` | Start MCP server (runs until Ctrl+C) |
+| `server.run()` | Start MCP server |
 
 ### AgenticAIClient
 
 | Property/Method | Description |
 |-----------------|-------------|
 | `client.tools` | List of loaded tool names |
-| `client.run(prompt)` | Simple ReAct agent workflow |
+| `client.run(prompt)` | Simple agentic workflow |
 | `client.run_with_planning(prompt)` | Planning-based workflow for complex tasks |
-| `client.run_sync(prompt)` | Synchronous version of `run()` |
-| `client.run_with_planning_sync(prompt)` | Synchronous version of `run_with_planning()` |
 
 ## License
 
