@@ -28,12 +28,12 @@ See the example notebooks:
 
 ## Usage
 
-### Server Mode (expose tools)
+### Server (expose tools)
 
 Run this on the machine where you want to host tools:
 
 ```python
-from agentic_ai_mcp import AgenticAI
+from agentic_ai_mcp import AgenticAIServer
 
 def add(a: int, b: int) -> int:
     """Add two numbers."""
@@ -43,61 +43,84 @@ def greet(name: str, times: int = 1) -> str:
     """Greet someone."""
     return ("Hello, " + name + "! ") * times
 
-# Create agentic instance and register tools
-ai = AgenticAI()
-ai.register_tool(add)
-ai.register_tool(greet)
+# Create server and register tools
+server = AgenticAIServer(host="0.0.0.0", port=8888)
+server.register_tool(add)
+server.register_tool(greet)
 
-# Start server
-ai.run_mcp_server()
+print(f"Tools: {server.tools}")
+print(f"URL: {server.mcp_url}")
 
-# Stop when done
-ai.stop_mcp_server()
+# Start server (blocking)
+server.run()
 ```
 
-### Client Mode (run agents)
+### Client (run agents)
 
 Run this on another machine to connect to the server and execute agents:
 
 ```python
-from agentic_ai_mcp import AgenticAI
+from agentic_ai_mcp import AgenticAIClient
 
-# Connect to remote MCP server 
-ai = AgenticAI(mcp_url="http://<server-ip>:8888/mcp") ## default provider: Anthropic, use provider = 'openai' to use OpenAI 
+# Connect to MCP server
+client = AgenticAIClient(mcp_url="http://<server-ip>:8888/mcp")
 
 # Simple agent workflow
-result = await ai.run("Calculate 2+1, then use the result as the number of times to greet 'Alice'.")
+result = await client.run("Calculate 2+1, then greet 'Alice' that many times.")
 print(result)
 
 # Planning-based workflow for complex tasks
-result = await ai.run_with_planning("Calculate ((0+2) + (1+1) + 1), then use the result as the number of times to greet 'Bob'.")
+result = await client.run_with_planning("Calculate ((0+2) + (1+1) + 1), then greet 'Bob' that many times.")
 print(result)
 ```
 
 ### Using OpenAI
 
 ```python
-from agentic_ai_mcp import AgenticAI
+from agentic_ai_mcp import AgenticAIClient
 
 # Use OpenAI instead of Anthropic
-ai = AgenticAI(
+client = AgenticAIClient(
     mcp_url="http://<server-ip>:8888/mcp",
     provider="openai",
-    model="gpt-4o-mini" ## or 'gpt-4o'/'gpt-4-turbo' etc.
+    model="gpt-4o-mini"
 )
 
-result = await ai.run("Calculate -1+2")
+result = await client.run("Calculate -1+2")
 ```
 
-## Methods
+### Passing API Key Directly
 
-| Method | Description |
-|--------|-------------|
-| `ai.register_tool(func)` | Register a function as an MCP tool |
-| `ai.run_mcp_server()` | Start MCP server in background |
-| `ai.stop_mcp_server()` | Stop the MCP server |
-| `ai.run(prompt)` | Simple agent workflow |
-| `ai.run_with_planning(prompt)` | Complex agent workflow |
+```python
+from agentic_ai_mcp import AgenticAIClient
+
+# Pass API key directly (instead of using .env)
+client = AgenticAIClient(
+    mcp_url="http://<server-ip>:8888/mcp",
+    api_key="sk-ant-..."
+)
+```
+
+## API Reference
+
+### AgenticAIServer
+
+| Property/Method | Description |
+|-----------------|-------------|
+| `server.tools` | List of registered tool names |
+| `server.mcp_url` | Server URL |
+| `server.register_tool(func)` | Register a function as an MCP tool |
+| `server.run()` | Start MCP server (blocking) |
+
+### AgenticAIClient
+
+| Property/Method | Description |
+|-----------------|-------------|
+| `client.tools` | List of loaded tool names |
+| `client.run(prompt)` | Simple ReAct agent workflow |
+| `client.run_with_planning(prompt)` | Planning-based workflow for complex tasks |
+| `client.run_sync(prompt)` | Synchronous version of `run()` |
+| `client.run_with_planning_sync(prompt)` | Synchronous version of `run_with_planning()` |
 
 ## License
 
