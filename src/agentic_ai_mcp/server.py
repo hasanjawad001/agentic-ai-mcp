@@ -18,15 +18,14 @@ from fastmcp import FastMCP
 
 
 def _wrap_tool_result(func: Callable[..., Any]) -> Callable[..., dict[str, Any]]:
-    """Wrap function to align singleton return (annotation and signature).
-
-    """
+    """Wrap function to align singleton return (annotation and signature)."""
     orig_annotations = {k: v for k, v in func.__annotations__.items() if k != "return"}
     new_annotations = {**orig_annotations, "return": dict}
     sig = inspect.signature(func)
     new_sig = sig.replace(return_annotation=dict)
 
     if inspect.iscoroutinefunction(func):
+
         async def async_wrapper(**kwargs: Any) -> dict[str, Any]:
             result = await func(**kwargs)
             return {"result": result}
@@ -37,6 +36,7 @@ def _wrap_tool_result(func: Callable[..., Any]) -> Callable[..., dict[str, Any]]
         async_wrapper.__signature__ = new_sig  # type: ignore[attr-defined]
         return async_wrapper  # type: ignore[return-value]
     else:
+
         def sync_wrapper(**kwargs: Any) -> dict[str, Any]:
             result = func(**kwargs)
             return {"result": result}
