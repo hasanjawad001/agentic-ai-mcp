@@ -1,9 +1,6 @@
 """Tool registration and conversion for MCP tools."""
 
 import asyncio
-import functools
-import inspect
-from collections.abc import Callable
 from typing import Any
 
 from fastmcp import Client
@@ -25,63 +22,12 @@ class ToolRegistry:
             verbose: Enable verbose output
         """
         self.verbose = verbose
-        self._registered_funcs: list[Callable[..., Any]] = []
         self._langchain_tools: list[StructuredTool] = []
-
-    @property
-    def tool_names(self) -> list[str]:
-        """Get list of registered tool names."""
-        return [f.__name__ for f in self._registered_funcs]
-
-    @property
-    def registered_funcs(self) -> list[Callable[..., Any]]:
-        """Get list of registered functions."""
-        return self._registered_funcs.copy()
 
     @property
     def langchain_tools(self) -> list[StructuredTool]:
         """Get list of LangChain tools."""
         return self._langchain_tools.copy()
-
-    def _wrap_tool_result(self, func: Callable[..., Any]) -> Callable[..., dict[str, Any]]:
-        """Wrap function to return {"result": <original_return>}.
-
-        This ensures all tool returns are dicts, which is required for
-        MCP structured_content to work correctly with non-dict types
-        like lists, arrays, and scalars.
-
-        Args:
-            func: Function to wrap
-
-        Returns:
-            Wrapped function that returns dict
-        """
-
-        @functools.wraps(func)
-        async def async_wrapper(*args: Any, **kwargs: Any) -> dict[str, Any]:
-            result = await func(*args, **kwargs)
-            return {"result": result}
-
-        @functools.wraps(func)
-        def sync_wrapper(*args: Any, **kwargs: Any) -> dict[str, Any]:
-            result = func(*args, **kwargs)
-            return {"result": result}
-
-        if inspect.iscoroutinefunction(func):
-            async_wrapper.__annotations__["return"] = dict
-            return async_wrapper  # type: ignore[return-value]
-        else:
-            sync_wrapper.__annotations__["return"] = dict
-            return sync_wrapper
-
-    def register(self, func: Callable[..., Any]) -> None:
-        """Register a function as an MCP tool.
-
-        Args:
-            func: Function with type hints and docstring
-        """
-        wrapped_func = self._wrap_tool_result(func)
-        self._registered_funcs.append(wrapped_func)
 
     async def load_from_mcp(self, mcp_url: str) -> list[StructuredTool]:
         """Load tools from an MCP server as LangChain tools.
