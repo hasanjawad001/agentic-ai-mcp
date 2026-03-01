@@ -18,6 +18,27 @@ import cloudpickle
 from fastmcp import FastMCP
 
 
+def _wrap_tool_result(func: Callable[..., Any]) -> Callable[..., dict[str, Any]]:
+    """Wrap function to return {"result": <original_return>}."""
+
+    @functools.wraps(func)
+    async def async_wrapper(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        result = await func(*args, **kwargs)
+        return {"result": result}
+
+    @functools.wraps(func)
+    def sync_wrapper(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        result = func(*args, **kwargs)
+        return {"result": result}
+
+    if inspect.iscoroutinefunction(func):
+        async_wrapper.__annotations__ = {**func.__annotations__, "return": dict}
+        return async_wrapper  # type: ignore[return-value]
+    else:
+        sync_wrapper.__annotations__ = {**func.__annotations__, "return": dict}
+        return sync_wrapper
+
+
 def _run_server_process(name: str, host: str, port: int, pickled_funcs: bytes) -> None:
     """Run MCP server in a subprocess.
 
@@ -31,7 +52,8 @@ def _run_server_process(name: str, host: str, port: int, pickled_funcs: bytes) -
 
     mcp = FastMCP(name)
     for func in funcs:
-        mcp.tool()(func)
+        wrapped = _wrap_tool_result(func)
+        mcp.tool()(wrapped)
     asyncio.run(mcp.run_http_async(host=host, port=port, stateless_http=True))
 
 
@@ -103,51 +125,17 @@ class AgenticAIServer:
         """Check if the server is currently running."""
         return self._running
 
-    def _wrap_tool_result(self, func: Callable[..., Any]) -> Callable[..., dict[str, Any]]:
-        """Wrap function to return {"result": <original_return>}.
-
-        This ensures all tool returns are dicts, which is required for
-        MCP structured_content to work correctly with non-dict types
-        like lists, arrays, and scalars.
-
-        Args:
-            func: Function to wrap
-
-        Returns:
-            Wrapped function that returns dict
-        """
-
-        @functools.wraps(func)
-        async def async_wrapper(*args: Any, **kwargs: Any) -> dict[str, Any]:
-            result = await func(*args, **kwargs)
-            return {"result": result}
-
-        @functools.wraps(func)
-        def sync_wrapper(*args: Any, **kwargs: Any) -> dict[str, Any]:
-            result = func(*args, **kwargs)
-            return {"result": result}
-
-        if inspect.iscoroutinefunction(func):
-            # create new annotations
-            async_wrapper.__annotations__ = {**func.__annotations__, "return": dict}
-            return async_wrapper  # type: ignore[return-value]
-        else:
-            # create new annotations
-            sync_wrapper.__annotations__ = {**func.__annotations__, "return": dict}
-            return sync_wrapper
-
     def register_tool(self, func: Callable[..., Any]) -> None:
         """Register a function as an MCP tool.
 
         Args:
             func: Function with type hints and docstring
         """
-        # Store original function name
+        # store original function name
         self._tool_names.append(func.__name__)
 
-        # Wrap to ensure dict returns and store
-        wrapped_func = self._wrap_tool_result(func)
-        self._registered_funcs.append(wrapped_func)
+        # store original function
+        self._registered_funcs.append(func)
 
         if self.verbose:
             print(f"Registered tool: {func.__name__}")
@@ -162,10 +150,10 @@ class AgenticAIServer:
                 print("Server is already running.")
             return
 
-        # Serialize functions using cloudpickle (handles notebook-defined functions)
+        # serialize functions using cloudpickle (handles notebook-defined functions)
         pickled_funcs = cloudpickle.dumps(self._registered_funcs)
 
-        # Start server process
+        # start server process
         self._server_process = multiprocessing.Process(
             target=_run_server_process,
             args=(self.name, self.host, self.port, pickled_funcs),
