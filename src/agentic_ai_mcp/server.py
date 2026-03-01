@@ -6,6 +6,7 @@ import functools
 import inspect
 import multiprocessing
 import os
+import platform
 import signal
 import socket
 import subprocess
@@ -200,13 +201,29 @@ class AgenticAIServer:
     def _get_pids_on_port(self) -> list[int]:
         """Get PIDs of processes using the server port."""
         try:
-            result = subprocess.run(
-                ["lsof", "-ti", f":{self.port}"],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                return [int(pid) for pid in result.stdout.strip().split("\n")]
+            if platform.system() == "Windows":
+                result = subprocess.run(
+                    ["netstat", "-ano"],
+                    capture_output=True,
+                    text=True,
+                )
+                pids = []
+                for line in result.stdout.splitlines():
+                    if f":{self.port}" in line and "LISTENING" in line:
+                        parts = line.strip().split()
+                        if parts:
+                            pid = int(parts[-1])
+                            if pid not in pids:
+                                pids.append(pid)
+                return pids
+            else:
+                result = subprocess.run(
+                    ["lsof", "-ti", f":{self.port}"],
+                    capture_output=True,
+                    text=True,
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    return [int(pid) for pid in result.stdout.strip().split("\n")]
         except (subprocess.SubprocessError, ValueError, FileNotFoundError):
             pass
         return []
@@ -214,9 +231,18 @@ class AgenticAIServer:
     def _kill_process_on_port(self) -> None:
         """Kill any process using the server port."""
         pids = self._get_pids_on_port()
-        for pid in pids:
-            with contextlib.suppress(ProcessLookupError, OSError):
-                os.kill(pid, signal.SIGKILL)
+
+        if platform.system() == "Windows":
+            for pid in pids:
+                with contextlib.suppress(Exception):
+                    subprocess.run(
+                        ["taskkill", "/F", "/PID", str(pid)],
+                        capture_output=True,
+                    )
+        else:
+            for pid in pids:
+                with contextlib.suppress(ProcessLookupError, OSError):
+                    os.kill(pid, signal.SIGKILL)
 
         time.sleep(0.5)
 
