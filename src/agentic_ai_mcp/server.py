@@ -128,10 +128,12 @@ class AgenticAIServer:
             return {"result": result}
 
         if inspect.iscoroutinefunction(func):
-            async_wrapper.__annotations__["return"] = dict
+            # create new annotations
+            async_wrapper.__annotations__ = {**func.__annotations__, "return": dict}
             return async_wrapper  # type: ignore[return-value]
         else:
-            sync_wrapper.__annotations__["return"] = dict
+            # create new annotations
+            sync_wrapper.__annotations__ = {**func.__annotations__, "return": dict}
             return sync_wrapper
 
     def register_tool(self, func: Callable[..., Any]) -> None:
