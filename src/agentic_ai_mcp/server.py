@@ -2,7 +2,6 @@
 
 import asyncio
 import contextlib
-import functools
 import inspect
 import multiprocessing
 import os
@@ -19,23 +18,33 @@ from fastmcp import FastMCP
 
 
 def _wrap_tool_result(func: Callable[..., Any]) -> Callable[..., dict[str, Any]]:
-    """Wrap function to return {"result": <original_return>}."""
+    """Wrap function to align singleton return (annotation and signature).
 
-    @functools.wraps(func)
-    async def async_wrapper(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        result = await func(*args, **kwargs)
-        return {"result": result}
-
-    @functools.wraps(func)
-    def sync_wrapper(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        result = func(*args, **kwargs)
-        return {"result": result}
+    """
+    orig_annotations = {k: v for k, v in func.__annotations__.items() if k != "return"}
+    new_annotations = {**orig_annotations, "return": dict}
+    sig = inspect.signature(func)
+    new_sig = sig.replace(return_annotation=dict)
 
     if inspect.iscoroutinefunction(func):
-        async_wrapper.__annotations__ = {**func.__annotations__, "return": dict}
+        async def async_wrapper(**kwargs: Any) -> dict[str, Any]:
+            result = await func(**kwargs)
+            return {"result": result}
+
+        async_wrapper.__name__ = func.__name__
+        async_wrapper.__doc__ = func.__doc__
+        async_wrapper.__annotations__ = new_annotations
+        async_wrapper.__signature__ = new_sig  # type: ignore[attr-defined]
         return async_wrapper  # type: ignore[return-value]
     else:
-        sync_wrapper.__annotations__ = {**func.__annotations__, "return": dict}
+        def sync_wrapper(**kwargs: Any) -> dict[str, Any]:
+            result = func(**kwargs)
+            return {"result": result}
+
+        sync_wrapper.__name__ = func.__name__
+        sync_wrapper.__doc__ = func.__doc__
+        sync_wrapper.__annotations__ = new_annotations
+        sync_wrapper.__signature__ = new_sig  # type: ignore[attr-defined]
         return sync_wrapper
 
 

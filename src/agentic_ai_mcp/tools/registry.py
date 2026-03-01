@@ -71,11 +71,7 @@ class ToolRegistry:
             # Filter out None values so MCP tool can use its defaults
             filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
             async with Client(mcp_url) as client:
-                # raise_on_error=False to skip output validation
-                result = await client.call_tool(
-                    mcp_tool.name, filtered_kwargs, raise_on_error=False
-                )
-                # unwrap
+                result = await client.call_tool(mcp_tool.name, filtered_kwargs)
                 if hasattr(result, "data") and isinstance(result.data, dict):
                     return result.data.get("result", result.data)
                 return result
