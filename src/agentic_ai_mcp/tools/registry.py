@@ -72,7 +72,13 @@ class ToolRegistry:
             filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
             async with Client(mcp_url) as client:
                 # raise_on_error=False to skip output validation
-                return await client.call_tool(mcp_tool.name, filtered_kwargs, raise_on_error=False)
+                result = await client.call_tool(
+                    mcp_tool.name, filtered_kwargs, raise_on_error=False
+                )
+                # unwrap
+                if hasattr(result, "data") and isinstance(result.data, dict):
+                    return result.data.get("result", result.data)
+                return result
 
         def call_tool(**kwargs: Any) -> Any:
             return asyncio.run(acall_tool(**kwargs))
