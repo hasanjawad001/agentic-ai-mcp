@@ -1,6 +1,6 @@
 """Tests for AgenticAIOrchestrator and SharedState."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -93,7 +93,7 @@ class TestAgenticAIOrchestrator:
 
         assert len(orch.clients) == 1
         assert orch._flow_type == "sequential"
-        assert orch._synthesizer is None
+        assert orch._do_synthesize is False
         assert isinstance(orch.shared_state, SharedState)
 
     def test_shared_state_attached_to_clients(self):
@@ -105,14 +105,6 @@ class TestAgenticAIOrchestrator:
         # Both clients share the same underlying dict
         assert c1.shared_state is c2.shared_state
         assert c1.shared_state["init"] is True
-
-    def test_shared_state_attached_to_synthesizer(self):
-        c1 = AgenticAIClient(role="worker")
-        synth = AgenticAIClient(role="synthesizer")
-        state = SharedState()
-        AgenticAIOrchestrator(clients=[c1], synthesizer=synth, shared_state=state)
-
-        assert synth.shared_state is c1.shared_state
 
     def test_build_prompt_with_role(self):
         client = AgenticAIClient(role="researcher")
@@ -201,23 +193,23 @@ class TestAgenticAIOrchestrator:
         assert "[beta]" in result
         assert "beta_result" in result
 
-    async def test_run_with_synthesizer(self):
+    async def test_run_with_synthesize(self):
         c1 = AgenticAIClient(role="worker")
-        synth = AgenticAIClient(role="synthesizer")
-        orch = AgenticAIOrchestrator(
-            clients=[c1], flow_type="sequential", synthesizer=synth
-        )
+        orch = AgenticAIOrchestrator(clients=[c1], flow_type="sequential", synthesize=True)
+
+        mock_llm = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = "synthesized"
+        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
 
         with (
             patch.object(c1, "run", new_callable=AsyncMock, return_value="raw data"),
-            patch.object(
-                synth, "run", new_callable=AsyncMock, return_value="synthesized"
-            ) as mock_synth,
+            patch.object(c1, "_get_llm", return_value=mock_llm),
         ):
             result = await orch.run("task")
 
-        # Synthesizer should get worker's output as context
-        synth_prompt = mock_synth.call_args[0][0]
+        # Synthesizer LLM should have received worker's output
+        synth_prompt = mock_llm.ainvoke.call_args[0][0][0].content
         assert "raw data" in synth_prompt
         assert result == "synthesized"
 
@@ -232,21 +224,20 @@ class TestAgenticAIOrchestrator:
 
         assert "planned result" in result
 
-    async def test_run_with_planning_and_synthesizer(self):
+    async def test_run_with_planning_and_synthesize(self):
         c1 = AgenticAIClient(role="worker")
-        synth = AgenticAIClient(role="synthesizer")
-        orch = AgenticAIOrchestrator(clients=[c1], synthesizer=synth)
+        orch = AgenticAIOrchestrator(clients=[c1], synthesize=True)
+
+        mock_llm = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = "synth_planned"
+        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
 
         with (
             patch.object(
                 c1, "run_with_planning", new_callable=AsyncMock, return_value="planned"
             ),
-            patch.object(
-                synth,
-                "run_with_planning",
-                new_callable=AsyncMock,
-                return_value="synth_planned",
-            ),
+            patch.object(c1, "_get_llm", return_value=mock_llm),
         ):
             result = await orch.run_with_planning("complex task")
 

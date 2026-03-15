@@ -3,6 +3,8 @@
 import asyncio
 from typing import Any, Literal
 
+from langchain_core.messages import HumanMessage
+
 from agentic_ai_mcp.client import AgenticAIClient
 from agentic_ai_mcp.shared_state import SharedState
 
@@ -11,17 +13,16 @@ class AgenticAIOrchestrator:
     """Orchestrates multiple AgenticAIClient instances to work together on a task.
 
     Supports sequential and parallel execution flows, with an optional
-    synthesizer agent that runs last to combine results.
+    synthesize step that uses a plain LLM (no tools) to combine results.
 
     Example:
         researcher = AgenticAIClient(role="researcher", tool_filter=["search"])
         writer = AgenticAIClient(role="writer", tool_filter=["write_file"])
-        synthesizer = AgenticAIClient(role="synthesizer")
 
         orchestrator = AgenticAIOrchestrator(
             clients=[researcher, writer],
             flow_type="sequential",
-            synthesizer=synthesizer,
+            synthesize=True,
         )
         result = await orchestrator.run("Research and document the project")
     """
@@ -30,7 +31,7 @@ class AgenticAIOrchestrator:
         self,
         clients: list[AgenticAIClient],
         flow_type: Literal["sequential", "parallel"] = "sequential",
-        synthesizer: AgenticAIClient | None = None,
+        synthesize: bool = False,
         shared_state: SharedState | None = None,
     ) -> None:
         """Initialize AgenticAIOrchestrator.
@@ -38,7 +39,8 @@ class AgenticAIOrchestrator:
         Args:
             clients: List of AgenticAIClient instances to orchestrate.
             flow_type: Execution flow - "sequential" or "parallel".
-            synthesizer: Optional client that runs last to combine results.
+            synthesize: If True, a plain LLM call (no tools) combines
+                all agent results into a final response.
             shared_state: Optional SharedState for agents to read/write.
                 If not provided, a new empty SharedState is created.
         """
@@ -47,14 +49,12 @@ class AgenticAIOrchestrator:
 
         self._clients = clients
         self._flow_type = flow_type
-        self._synthesizer = synthesizer
+        self._do_synthesize = synthesize
         self._shared_state = shared_state or SharedState()
 
-        # attach shared state to all clients (including synthesizer)
+        # attach shared state to all clients
         for client in self._clients:
             client.shared_state = self._shared_state._data
-        if self._synthesizer is not None:
-            self._synthesizer.shared_state = self._shared_state._data
 
     @property
     def clients(self) -> list[AgenticAIClient]:
@@ -165,6 +165,31 @@ class AgenticAIOrchestrator:
             parts.append(f"[{r['role']}]\n{r['output']}")
         return "\n\n".join(parts)
 
+    async def _synthesize(self, prompt: str, combined: str) -> str:
+        """Synthesize agent results using a plain LLM call (no tools).
+
+        Uses the LLM from the first client to combine all agent results
+        into a final response.
+
+        Args:
+            prompt: The original user prompt.
+            combined: Formatted results from all agents.
+
+        Returns:
+            Synthesized final response.
+        """
+        synth_prompt = (
+            f"You are a synthesizer. The following agents have worked on a task. "
+            f"Combine their results into a clear, concise final response.\n\n"
+            f"Original task: {prompt}\n\n"
+            f"Agent results:\n{combined}\n\n"
+            f"Provide a final synthesized response that addresses the original task."
+        )
+
+        llm = self._clients[0]._get_llm()
+        response = await llm.ainvoke([HumanMessage(content=synth_prompt)])
+        return str(response.content)
+
     async def _execute(self, prompt: str, use_planning: bool = False) -> str:
         """Core execution logic for both run modes.
 
@@ -184,17 +209,19 @@ class AgenticAIOrchestrator:
         # Store results in shared state
         self._shared_state.set("agent_results", results)
 
-        # If no synthesizer, return formatted results
-        if self._synthesizer is None:
-            return self._format_results(results)
-
-        # Run synthesizer with all results as context
+        # Format results
         combined = self._format_results(results)
-        synth_prompt = self._build_prompt(self._synthesizer, prompt, combined)
 
-        if use_planning:
-            return await self._synthesizer.run_with_planning(synth_prompt)
-        return await self._synthesizer.run(synth_prompt)
+        # If synthesize is enabled, run a plain LLM call to combine results
+        if self._synthesize_enabled:
+            return await self._synthesize(prompt, combined)
+
+        return combined
+
+    @property
+    def _synthesize_enabled(self) -> bool:
+        """Check if synthesis is enabled."""
+        return self._do_synthesize
 
     async def run(self, prompt: str) -> str:
         """Run orchestration using simple ReAct on each client.
@@ -203,7 +230,7 @@ class AgenticAIOrchestrator:
             prompt: Task for the agents.
 
         Returns:
-            Final result (synthesized if synthesizer is provided,
+            Final result (synthesized if enabled,
             otherwise combined results from all agents).
         """
         return await self._execute(prompt, use_planning=False)
@@ -215,7 +242,7 @@ class AgenticAIOrchestrator:
             prompt: Task for the agents.
 
         Returns:
-            Final result (synthesized if synthesizer is provided,
+            Final result (synthesized if enabled,
             otherwise combined results from all agents).
         """
         return await self._execute(prompt, use_planning=True)
