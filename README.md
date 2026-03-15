@@ -262,6 +262,14 @@ result = orchestrator.run_with_planning_sync("Complex task...")
 | `state.to_dict()` | Return a copy of the full state |
 | `key in state` | Check if a key exists |
 
+## Key Capabilities
+
+- **Multi-Server** — A single client can connect to tools spread across multiple MCP servers
+- **Image Transfer** — Images transfer over protocol, auto-displayed in Jupyter
+- **Multi-Client Orchestration** — Coordinate multiple agents in `sequential` or `parallel` flows with optional `synthesis`
+- **Shared State** — Data sharing between agents during orchestration
+- **Multi-Execution Modes** — Simple agentic flow (`run`) for straightforward tasks, multi-step planning (`run_with_planning`) for complex ones
+
 ## License
 
 MIT

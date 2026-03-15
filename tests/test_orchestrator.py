@@ -174,7 +174,7 @@ class TestAgenticAIOrchestrator:
             await orch.run("task")
 
         # c2 should have received c1's output as context
-        called_prompt = mock_c2.call_args[0][0]
+        called_prompt = mock_c2.call_args[0][0] ## mock_c2.call_args captures the actual prompt the orchestrator sent to c2.run()
         assert "output_from_first" in called_prompt
 
     async def test_run_parallel(self):
@@ -208,9 +208,11 @@ class TestAgenticAIOrchestrator:
         ):
             result = await orch.run("task")
 
-        # Synthesizer LLM should have received worker's output
+        # Synthesizer LLM should have received worker/cleint's output which includes 'raw data'
         synth_prompt = mock_llm.ainvoke.call_args[0][0][0].content
         assert "raw data" in synth_prompt
+        # But havning a final synthesizer would update the final response in this case,
+        # - updates from 'raw data' (that synthesizer gets as input) to 'synthesized' (that synthesizer outputs)
         assert result == "synthesized"
 
     async def test_run_with_planning(self):
